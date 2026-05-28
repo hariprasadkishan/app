@@ -67,6 +67,12 @@ const userSchema = new Schema(
 
     // ── Auth flags ────────────────────────────────────────────────────────────
     isPhoneVerified: { type: Boolean, default: false },
+    kycStatus: {
+      type:    String,
+      enum:    ['pending', 'under_review', 'approved', 'rejected'],
+      default: 'pending',
+      index:   true
+    },
     isActive:        { type: Boolean, default: true,  index: true },
     isBanned:        { type: Boolean, default: false, index: true },
     banReason:       { type: String,  trim: true,     default: null },
