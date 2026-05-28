@@ -118,3 +118,14 @@ export function enumField(enumObj, defaultVal, required = true) {
     required,
   };
 }
+
+
+/**
+ * Helper to check if a document or OTP session has expired
+ * @param {Date} expiryDate 
+ * @returns {Boolean} true if expired
+ */
+export const isExpired = (expiryDate) => {
+  if (!expiryDate) return false;
+  return new Date() > new Date(expiryDate);
+};
