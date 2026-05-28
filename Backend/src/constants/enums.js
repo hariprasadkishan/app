@@ -26,6 +26,15 @@ export const DOCUMENT_TYPE = Object.freeze({
   SELFIE:       'selfie',
 });
 
+export const ACCOUNT_STATUS = Object.freeze({
+  PENDING_KYC: 'pending_kyc',
+  VERIFIED:    'verified',
+  REJECTED:    'rejected',
+  SUSPENDED:   'suspended'
+});
+
+export const ALLOWED_DOCUMENT_TYPES = Object.values(DOCUMENT_TYPE);
+
 export const DOCUMENT_STATUS = Object.freeze({
   UPLOADED: 'uploaded',
   UNDER_REVIEW: 'under_review',
