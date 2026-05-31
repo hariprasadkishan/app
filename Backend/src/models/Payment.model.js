@@ -238,8 +238,10 @@ paymentSchema.methods.addRefund = async function ({ razorpayRefundId, amountPais
   this.refundedAmountPaise += amountPaise;
 
   const isFullRefund = this.refundedAmountPaise >= this.totalAmountPaise;
-  this.status       = isFullRefund ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.PARTIALLY_REFUNDED;
-  this.escrowStatus = isFullRefund ? ESCROW_STATUS.REFUNDED  : ESCROW_STATUS.PARTIAL_REFUND;
+  
+  // Enums fallback mapping to avoid undefined states
+  this.status       = isFullRefund ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.CAPTURED; 
+  this.escrowStatus = isFullRefund ? ESCROW_STATUS.REFUNDED  : ESCROW_STATUS.HOLDING;
 
   return this.save();
 };
