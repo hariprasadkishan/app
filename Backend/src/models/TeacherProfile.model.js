@@ -102,7 +102,14 @@ const teacherProfileSchema = new Schema(
       {
         institution: { type: String, trim: true },
         degree:      { type: String, trim: true },
-        year:        { type: Number, min: 1950, max: new Date().getFullYear() },
+        year: { 
+          type: Number, 
+          min: 1950, 
+          validate: {
+            validator: (v) => v <= new Date().getFullYear(),
+            message: 'Education year cannot be in the future!'
+          }
+        }
       },
     ],
 
@@ -264,6 +271,12 @@ teacherProfileSchema.pre('save', function (next) {
 
     this.searchKeywords = [...new Set(kw)];
   }
+  if (this.isModified('verificationStatus')) {
+    this.model('User').updateOne(
+      { _id: this.userId },
+      { kycStatus: this.verificationStatus }
+    ).catch(err => console.error("Sync Error:", err));
+  }
   next();
 });
 
@@ -390,7 +403,7 @@ teacherProfileSchema.statics.topEarners = function (limit = 10) {
         pipeline:     [{ $project: { name: 1, phone: 1, avatarUrl: 1 } }],
       },
     },
-    { $unwind: '$user' },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
     {
       $project: {
         userId:               1,
