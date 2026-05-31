@@ -235,7 +235,8 @@ bookingSchema.statics.hasConflict = async function (teacherId, scheduledAt, dura
   const sessionEnd = new Date(scheduledAt.getTime() + durationMinutes * 60 * 1000);
   const conflict = await this.findOne({
     teacherId,
-    status:      { $in: [BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS] },
+    // Critical protection: block slots even if another check-out is in PENDING state
+    status:      { $in: [BOOKING_STATUS.PENDING, BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS] },
     scheduledAt: { $lt: sessionEnd },
     $expr: {
       $gt: [

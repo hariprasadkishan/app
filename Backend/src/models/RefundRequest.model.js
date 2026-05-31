@@ -127,9 +127,9 @@ refundRequestSchema.index({ slaDeadline: 1, status: 1 });              // SLA br
 refundRequestSchema.index(
   { bookingId: 1 },
   {
-    unique:                true,
+    unique: true,
     partialFilterExpression: {
-      status: { $in: [REFUND_STATUS.REQUESTED, REFUND_STATUS.UNDER_REVIEW] },
+      status: 'requested' // Keep lock minimal to the active initiation point only
     },
   },
 );
