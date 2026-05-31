@@ -142,7 +142,8 @@ documentSchema.statics.getActiveByTeacher = function (teacherId) {
  * Check if a teacher has all required document types approved.
  */
 documentSchema.statics.isKycComplete = async function (teacherId) {
-  const required = [DOCUMENT_TYPE.AADHAAR, DOCUMENT_TYPE.PAN];
+  // Mapping strictly matching our centralized identity registry
+  const required = [DOCUMENT_TYPE.IDENTITY_PROOF, DOCUMENT_TYPE.DEGREE];
   const approved = await this.find({
     teacherId,
     type:   { $in: required },
