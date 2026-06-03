@@ -1,0 +1,75 @@
+import rateLimit from "express-rate-limit";
+import env from "../config/env.config.js";
+import ApiError from "../utils/ApiError.js";
+
+// ─── Shared options ───────────────────────────────────────────────────────────
+const sharedOptions = {
+  standardHeaders: true,    // Return RateLimit-* headers (RFC 6585)
+  legacyHeaders: false,     // Disable X-RateLimit-* legacy headers
+  skipFailedRequests: false,
+  validate: false, 
+  handler(req, res, next, options) {
+    next(
+      new ApiError(
+        429,
+        `Too many requests. Try again after ${Math.ceil(options.windowMs / 60000)} minutes.`,
+        [],
+        "RATE_LIMIT_EXCEEDED"
+      )
+    );
+  },
+};
+
+// ─── Rate limit tiers ─────────────────────────────────────────────────────────
+
+/**
+ * Global API limiter — applied to all /api/* routes.
+ * Sabse simple, isme keyGenerator likhne ki zaroorat hi nahi hai, 
+ * library khud back-end par sahi IP pick karegi bina warning ke.
+ */
+export const globalLimiter = rateLimit({
+  ...sharedOptions,
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.RATE_LIMIT_MAX_REQUESTS,
+  skip: (req) => req.path === "/health",
+});
+
+/**
+ * Auth limiter — OTP send and verify endpoints.
+ * Key by IP + phone to prevent one IP hammering many phone numbers.
+ */
+export const authLimiter = rateLimit({
+  ...sharedOptions,
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => {
+    const phone = req.body?.phone ?? "unknown";
+    // Standard library method to safely extract user IP across IPv4/IPv6
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    return `${ip}:${phone}`;
+  },
+});
+
+/**
+ * Upload limiter — document / avatar upload endpoints.
+ */
+export const uploadLimiter = rateLimit({
+  ...sharedOptions,
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => {
+    return req.user?._id?.toString() || req.ip || "unknown";
+  },
+});
+
+/**
+ * Payment limiter — payment initiation endpoint.
+ */
+export const paymentLimiter = rateLimit({
+  ...sharedOptions,
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  keyGenerator: (req) => {
+    return req.user?._id?.toString() || req.ip || "unknown";
+  },
+});
