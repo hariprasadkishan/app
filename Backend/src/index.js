@@ -1,19 +1,16 @@
-import dotenv from "dotenv";
-import connectDB from "./db/index.js";
-import app from './app.js'
+import { connectDB } from "./db/index.js";
+import app from './app.js';
+import env from './config/env.config.js';
+import logger from './config/logger.config.js';
 
-dotenv.config({
-    path: './.env'
-})
-
-const port = process.env.PORT || 8000
+const port = env.PORT;
 
 connectDB()
 .then(() => {
     app.listen(port, () => {
-        console.log(`Server is running at port ${port}`)
-    })
+        logger.info(`🚀 TrueEd Server is running at port ${port} in ${env.NODE_ENV} mode`);
+    });
 })
 .catch((error) => {
-    console.log(`MONGODB connection FAILED !!!`, error)
-})
+    logger.error(`💥 Critical application boot failure !!!`, error);
+});
