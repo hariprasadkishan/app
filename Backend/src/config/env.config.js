@@ -12,7 +12,10 @@
  * SCALABILITY: Add new vars here once; every service gets them automatically.
  */
 
+import dotenv from "dotenv";
 import { cleanEnv, str, num, bool, url, makeValidator } from "envalid";
+
+dotenv.config(); // Load .env file into process.env
 
 // ─── Custom validators ────────────────────────────────────────────────────────
 
