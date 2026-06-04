@@ -22,7 +22,7 @@ import {
   enumField,
   auditSchema,
   defaultPaginateOptions,
-}                                            from '../utils/schema.utils.js';
+}                                            from '../utils/schema.util.js';
 
 const { Schema } = mongoose;
 
@@ -143,7 +143,7 @@ documentSchema.statics.getActiveByTeacher = function (teacherId) {
  */
 documentSchema.statics.isKycComplete = async function (teacherId) {
   // Mapping strictly matching our centralized identity registry
-  const required = [DOCUMENT_TYPE.IDENTITY_PROOF, DOCUMENT_TYPE.DEGREE];
+  const required = [DOCUMENT_TYPE.AADHAAR, DOCUMENT_TYPE.DEGREE];
   const approved = await this.find({
     teacherId,
     type:   { $in: required },

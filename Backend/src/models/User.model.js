@@ -17,7 +17,7 @@ import mongooseLeanVirtuals  from 'mongoose-lean-virtuals';
 import { ROLES }                            from '../constants/enums.js';
 import { jsonTransform, toObjectOptions,
          phoneValidator, urlValidator,
-         defaultPaginateOptions }           from '../utils/schema.utils.js';
+         defaultPaginateOptions }           from '../utils/schema.util.js';
 
 const { Schema } = mongoose;
 

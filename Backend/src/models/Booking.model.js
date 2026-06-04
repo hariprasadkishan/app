@@ -27,7 +27,7 @@ import {
   enumField,
   auditSchema,
   defaultPaginateOptions,
-}                                                  from '../utils/schema.utils.js';
+}                                                  from '../utils/schema.util.js';
 
 const { Schema } = mongoose;
 

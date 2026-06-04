@@ -32,7 +32,7 @@ import {
   urlValidator,
   defaultPaginateOptions,
   enumField,
-}                                    from '../utils/schema.utils.js';
+}                                    from '../utils/schema.util.js';
 
 const { Schema } = mongoose;
 
@@ -270,12 +270,6 @@ teacherProfileSchema.pre('save', function (next) {
       .map((s) => s.toLowerCase().trim());
 
     this.searchKeywords = [...new Set(kw)];
-  }
-  if (this.isModified('verificationStatus')) {
-    this.model('User').updateOne(
-      { _id: this.userId },
-      { kycStatus: this.verificationStatus }
-    ).catch(err => console.error("Sync Error:", err));
   }
   next();
 });

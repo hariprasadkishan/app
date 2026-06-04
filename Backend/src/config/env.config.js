@@ -1,24 +1,9 @@
-/**
- * env.config.js
- *
- * Centralised, validated environment configuration.
- *
- * WHY: "Fail fast" on startup — if a required env var is missing we crash
- * immediately with a clear error rather than discovering it at runtime when
- * a request is already in-flight.  All consumer modules import from here
- * instead of calling process.env directly, keeping configuration in one place
- * and making secrets easy to mock in tests.
- *
- * SCALABILITY: Add new vars here once; every service gets them automatically.
- */
-
 import dotenv from "dotenv";
 import { cleanEnv, str, num, bool, url, makeValidator } from "envalid";
 
 dotenv.config(); // Load .env file into process.env
 
 // ─── Custom validators ────────────────────────────────────────────────────────
-
 const commaSeparatedList = makeValidator((x) => {
   if (typeof x !== "string" || x.trim() === "")
     throw new Error("Expected a non-empty comma-separated string");
@@ -26,11 +11,11 @@ const commaSeparatedList = makeValidator((x) => {
 });
 
 // ─── Validation & export ──────────────────────────────────────────────────────
-
 const env = cleanEnv(process.env, {
   // ── Server ──────────────────────────────────────────────────────────────────
   NODE_ENV: str({ choices: ["development", "test", "production"] }),
   PORT: num({ default: 8000 }),
+  FRONTEND_URL: str({ default: "http://localhost:5173" }), // Added for CORS/Redirects
 
   // ── MongoDB ─────────────────────────────────────────────────────────────────
   MONGODB_URI: str(),
@@ -54,6 +39,7 @@ const env = cleanEnv(process.env, {
   CLOUDINARY_CLOUD_NAME: str(),
   CLOUDINARY_API_KEY: str(),
   CLOUDINARY_API_SECRET: str(),
+  CLOUDINARY_FOLDER: str({ default: "trueed" }), // Added for asset categorization
 
   // ── Razorpay (future) ────────────────────────────────────────────────────────
   RAZORPAY_KEY_ID: str({ default: "" }),
@@ -63,15 +49,21 @@ const env = cleanEnv(process.env, {
   // ── Redis (future) ───────────────────────────────────────────────────────────
   REDIS_URL: str({ default: "" }),
 
-  // ── Cookie ──────────────────────────────────────────────────────────────────
+  // ── Cookie & Logs ───────────────────────────────────────────────────────────
   COOKIE_DOMAIN: str({ default: "" }),
+  REFRESH_TOKEN_COOKIE_DOMAIN: str({ default: "" }), // Added for secure refresh domains
+  LOG_LEVEL: str({ choices: ["error", "warn", "info", "http", "debug"], default: "info" }), // Added for Winston control
 
-  // ── Rate limiting ────────────────────────────────────────────────────────────
+  // ── Rate limiting & Uploads ─────────────────────────────────────────────────
   RATE_LIMIT_WINDOW_MS: num({ default: 15 * 60 * 1000 }),   // 15 min
   RATE_LIMIT_MAX_REQUESTS: num({ default: 100 }),
-
-  // ── Upload ──────────────────────────────────────────────────────────────────
   MAX_FILE_SIZE_MB: num({ default: 10 }),
+  MAX_CONCURRENT_UPLOADS: num({ default: 50 }),
+
+  // ── SMS Gateways (Stubs management) ─────────────────────────────────────────
+  SMS_PROVIDER: str({ choices: ["msg91", "fast2sms", "twilio", "mock"], default: "mock" }),
+  MSG91_API_KEY: str({ default: "" }),
+  MSG91_TEMPLATE_ID: str({ default: "" }),
 
   // ── Admin ───────────────────────────────────────────────────────────────────
   ADMIN_IDS: commaSeparatedList(),            // MongoDB ObjectId strings

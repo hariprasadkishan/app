@@ -24,7 +24,7 @@ import {
   auditSchema,
   urlValidator,
   defaultPaginateOptions,
-}                                          from '../utils/schema.utils.js';
+}                                          from '../utils/schema.util.js';
 
 const { Schema } = mongoose;
 
