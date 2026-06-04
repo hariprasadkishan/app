@@ -12,7 +12,7 @@
 import mongoose             from 'mongoose';
 import { phoneValidator,
          jsonTransform,
-         toObjectOptions }  from '../utils/schema.utils.js';
+         toObjectOptions }  from '../utils/schema.util.js';
 
 const { Schema } = mongoose;
 
