@@ -1,13 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// src/models/User.model.js
-//
-// Architecture decisions:
-//  • Single collection for student/teacher/admin — role discriminates behaviour.
-//  • Keeps auth surface minimal; sensitive profile lives in TeacherProfile.
-//  • "credits" field is reserved for future wallet/referral system.
-//  • fcmToken / pushTokens are stored here for future notification cron.
-//  • lastActiveAt drives engagement analytics without extra collection.
-//  • Sparse unique index on email — students may skip email entirely.
+// src/models/User.model.js  (updated — added city, favourites fields)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import mongoose              from 'mongoose';
@@ -17,11 +9,9 @@ import mongooseLeanVirtuals  from 'mongoose-lean-virtuals';
 import { ROLES }                            from '../constants/enums.js';
 import { jsonTransform, toObjectOptions,
          phoneValidator, urlValidator,
-         defaultPaginateOptions }           from '../utils/schema.util.js';
+         defaultPaginateOptions }           from '../utils/schema.utils.js';
 
 const { Schema } = mongoose;
-
-// ── Schema ───────────────────────────────────────────────────────────────────
 
 const userSchema = new Schema(
   {
@@ -51,7 +41,7 @@ const userSchema = new Schema(
       type:      String,
       trim:      true,
       lowercase: true,
-      sparse:    true,    // unique but nullable
+      sparse:    true,
       unique:    true,
       validate: {
         validator: (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
@@ -65,13 +55,21 @@ const userSchema = new Schema(
       default:  null,
     },
 
+    // ── Location ──────────────────────────────────────────────────────────────
+    city: {
+      type:    String,
+      trim:    true,
+      default: null,
+      index:   true,
+    },
+
     // ── Auth flags ────────────────────────────────────────────────────────────
     isPhoneVerified: { type: Boolean, default: false },
     kycStatus: {
       type:    String,
       enum:    ['pending', 'under_review', 'approved', 'rejected'],
       default: 'pending',
-      index:   true
+      index:   true,
     },
     isActive:        { type: Boolean, default: true,  index: true },
     isBanned:        { type: Boolean, default: false, index: true },
@@ -79,14 +77,23 @@ const userSchema = new Schema(
 
     // ── Engagement / notifications ────────────────────────────────────────────
     lastActiveAt:    { type: Date, default: null, index: true },
-    fcmTokens: {                                     // supports multi-device
+    fcmTokens: {
       type:    [String],
       default: [],
-      select:  false,                                // never leak push tokens
+      select:  false,
     },
 
+    // ── Favourites (student saves teacher profiles) ───────────────────────────
+    favourites: [
+      {
+        type:  Schema.Types.ObjectId,
+        ref:   'User',
+        index: true,
+      },
+    ],
+
     // ── Future wallet stub ────────────────────────────────────────────────────
-    walletBalance: {                                 // in paise
+    walletBalance: {
       type:    Number,
       default: 0,
       min:     [0, 'Wallet balance cannot be negative'],
@@ -94,7 +101,7 @@ const userSchema = new Schema(
 
     // ── Admin meta ────────────────────────────────────────────────────────────
     onboardedAt:  { type: Date, default: null },
-    deletedAt:    { type: Date, default: null, index: true },  // soft-delete
+    deletedAt:    { type: Date, default: null, index: true },
   },
   {
     timestamps:  true,
@@ -143,7 +150,6 @@ userSchema.methods.ban = async function (reason) {
 
 userSchema.methods.touchActivity = function () {
   this.lastActiveAt = new Date();
-  // use updateOne to avoid full document round-trip in hot paths
   return this.constructor.updateOne({ _id: this._id }, { lastActiveAt: new Date() });
 };
 
@@ -157,11 +163,6 @@ userSchema.statics.findActiveById = function (id) {
   return this.findOne({ _id: id, isActive: true, deletedAt: null });
 };
 
-/**
- * Admin: paginated user list with role filter
- * @param {object} filter - mongoose filter
- * @param {object} options - paginate options
- */
 userSchema.statics.listPaginated = function (filter = {}, options = {}) {
   const safeFilter = { deletedAt: null, ...filter };
   return this.paginate(safeFilter, {
@@ -174,9 +175,6 @@ userSchema.statics.listPaginated = function (filter = {}, options = {}) {
   });
 };
 
-/**
- * Analytics: user signup counts grouped by role & date
- */
 userSchema.statics.signupAnalytics = function (startDate, endDate) {
   return this.aggregate([
     {
@@ -197,7 +195,6 @@ userSchema.statics.signupAnalytics = function (startDate, endDate) {
 
 // ── Middleware hooks ─────────────────────────────────────────────────────────
 
-// Set onboardedAt once on first activation
 userSchema.pre('save', function (next) {
   if (this.isNew) {
     this.onboardedAt = new Date();
@@ -205,7 +202,6 @@ userSchema.pre('save', function (next) {
   next();
 });
 
-// Prevent saving banned/deleted users as active
 userSchema.pre('save', function (next) {
   if ((this.isBanned || this.deletedAt) && this.isActive) {
     this.isActive = false;
