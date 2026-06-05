@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// src/models/User.model.js  (updated — added city, favourites fields)
-// ─────────────────────────────────────────────────────────────────────────────
 
 import mongoose              from 'mongoose';
 import mongoosePaginate      from 'mongoose-paginate-v2';
