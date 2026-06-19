@@ -43,6 +43,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
     throw new ApiError(403, 'Account deactivated', [], 'ACCOUNT_DEACTIVATED');
   }
 
+  
   if (user.isBanned) {
     throw new ApiError(403, 'Account suspended', [], 'ACCOUNT_BANNED');
   }
