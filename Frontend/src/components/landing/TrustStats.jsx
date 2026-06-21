@@ -1,8 +1,8 @@
 const stats = [
   { value: '100%', label: 'Verified Teachers' },
   { value: '₹0', label: 'Hidden Fees' },
-  { value: '24hr', label: 'Admin Response' },
-  { value: '15%', label: 'Platform Fee' },
+  { value: '12hr', label: 'Admin Response' },
+  { value: '10%', label: 'Platform Fee' },
 ];
 
 const TrustStats = () => (

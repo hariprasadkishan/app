@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { teacherData } from '../data/teacherData';
+import { teacherQueriesData } from '../data/teacherQueries';
 
 const initialSessions = [
   { id: 1, student: 'Aarav M.', initials: 'AM', subject: 'Physics Class 12', time: '10:00 AM - 11:30 AM', type: 'Online', completed: false },
@@ -22,6 +23,8 @@ const initialBookings = [
   { id: 103, student: 'Karan V.', initials: 'KV', subject: 'Chemistry Revision', date: `${getFormattedDate(3)}, 2 PM`, status: 'pending' },
 ];
 
+
+
 export default function TeacherDashboard() {
   useEffect(() => {
     document.title = "Teacher Dashboard — TrueEdu";
@@ -29,6 +32,10 @@ export default function TeacherDashboard() {
 
   const [sessions, setSessions] = useState(initialSessions);
   const [bookings, setBookings] = useState(initialBookings);
+
+  const totalQueries = teacherQueriesData.length;
+  const pendingQueries = teacherQueriesData.filter(q => q.status === 'pending').length;
+  const repliedQueries = teacherQueriesData.filter(q => q.status === 'replied').length;
 
   const toggleSessionComplete = (id) => {
     setSessions(sessions.map(s => s.id === id ? { ...s, completed: !s.completed } : s));
@@ -147,6 +154,35 @@ export default function TeacherDashboard() {
               ))}
             </div>
           </div>
+
+          {/* Student Queries Widget */}
+          <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex flex-col h-full">
+            <div className="mb-6">
+              <h2 className="text-xl font-sora font-bold text-navy">Student Queries</h2>
+              <p className="text-sm text-gray-500 mt-1">Students interested in learning from you</p>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 text-center">
+                <p className="font-sora font-extrabold text-2xl text-navy">{totalQueries}</p>
+                <p className="text-[10px] uppercase font-bold text-slate-500 mt-1 tracking-wider">Total</p>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 text-center">
+                <p className="font-sora font-extrabold text-2xl text-amber-600">{pendingQueries}</p>
+                <p className="text-[10px] uppercase font-bold text-amber-700 mt-1 tracking-wider">Pending</p>
+              </div>
+              <div className="bg-green-50 border border-green-100 rounded-lg p-4 text-center">
+                <p className="font-sora font-extrabold text-2xl text-green-600">{repliedQueries}</p>
+                <p className="text-[10px] uppercase font-bold text-green-700 mt-1 tracking-wider">Replied</p>
+              </div>
+            </div>
+
+            <div className="mt-auto">
+              <Link to="/teacher/queries" className="w-full flex items-center justify-center gap-2 py-3 bg-navy text-white rounded-lg font-bold hover:bg-navy-light transition shadow-sm">
+                View All Queries <i className="fa-solid fa-arrow-right text-xs" />
+              </Link>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-8">
@@ -224,6 +260,8 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+
+
     </div>
   );
 }

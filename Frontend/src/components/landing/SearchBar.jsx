@@ -10,7 +10,7 @@ const placeholders = [
 ];
 
 const trendingSearches = [
-  "Mathematics", "Physics", "Guitar", "NEET Coaching", "Spoken English"
+  "Mathematics", "Physics", "Guitar", "NEET", "Spoken English"
 ];
 
 const dummyResults = [
@@ -20,7 +20,7 @@ const dummyResults = [
   { id: 4, name: 'Rahul Sharma', subject: 'Chemistry', city: 'Pune', rating: 4.7, color: 'bg-orange-500' },
   { id: 5, name: 'Priya Patel', subject: 'Biology', city: 'Ahmedabad', rating: 4.6, color: 'bg-teal-500' },
   { id: 6, name: 'Vikram Joshi', subject: 'Guitar', city: 'Jaipur', rating: 4.9, color: 'bg-red-500' },
-  { id: 7, name: 'Neha Gupta', subject: 'NEET Coaching', city: 'Lucknow', rating: 4.8, color: 'bg-indigo-500' },
+  { id: 7, name: 'Neha Gupta', subject: 'NEET', city: 'Lucknow', rating: 4.8, color: 'bg-indigo-500' },
   { id: 8, name: 'Sanjay Reddy', subject: 'Spoken English', city: 'Chennai', rating: 4.7, color: 'bg-pink-500' }
 ];
 
@@ -89,7 +89,7 @@ const SearchBar = ({ onSearch }) => {
     if (onSearch) {
       onSearch({ subject: term, cls: '', topic: '' });
     } else {
-      navigate(`/student/discover?subject=${encodeURIComponent(term)}`);
+      navigate(`/lessons/${term.trim().toLowerCase().replace(/\s+/g, '-')}/india`);
     }
   };
 

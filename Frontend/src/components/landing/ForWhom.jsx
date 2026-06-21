@@ -14,7 +14,7 @@ const cards = [
       'Call teacher directly after booking',
     ],
     cta: 'Find a Teacher',
-    to: '/login?role=student',
+    to: '/student/discover',
   },
   {
     id: 'for-teachers',
@@ -26,7 +26,7 @@ const cards = [
       'Toggle availability by day & time',
       'Track earnings: Held → Released → Bank',
       'Get student details before class',
-      '15% platform commission only',
+      '10% platform commission only',
     ],
     cta: 'Start Teaching',
     to: '/login?role=teacher',

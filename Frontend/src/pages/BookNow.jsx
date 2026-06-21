@@ -16,7 +16,7 @@ const BookNow = () => {
 
   const baseRate = 500;
   const sessionCost = baseRate * form.duration;
-  const platformFee = sessionCost * 0.15;
+  const platformFee = sessionCost * 0.10;
   const total = sessionCost + platformFee;
 
   const handleConfirmBooking = () => {
@@ -47,6 +47,9 @@ const BookNow = () => {
         <Link to="/student/dashboard" className="inline-block py-3.5 px-8 bg-navy text-white rounded-brand font-sora font-semibold hover:bg-navy-light transition">
           Go to Dashboard
         </Link>
+        <p className="text-xs text-muted mt-6 max-w-sm mx-auto">
+          Note: Students pay a one-time ₹19 access fee to connect with teachers.
+        </p>
       </div>
     );
   }
@@ -138,7 +141,7 @@ const BookNow = () => {
                 <span className="text-navy font-medium">₹{sessionCost}</span>
               </div>
               <div className="flex justify-between text-muted">
-                <span>Platform Fee (15%)</span>
+                <span>Platform Fee (10%)</span>
                 <span className="text-navy font-medium">₹{platformFee}</span>
               </div>
               <div className="pt-3 border-t border-slate-100 flex justify-between font-bold text-lg">
