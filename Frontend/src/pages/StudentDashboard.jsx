@@ -64,8 +64,8 @@ const mockTutors = [
 ];
 
 const recentTutors = [
-  { name: 'Priya Desai', initials: 'PD', subject: 'English', rating: 4.6, price: 500 },
-  { name: 'Amit Patel', initials: 'AP', subject: 'Computer Science', rating: 4.9, price: 900 },
+  { name: 'Priya Desai', initials: 'PD', subject: 'English', location: 'Mumbai, India', rating: 4.6, price: 500 },
+  { name: 'Amit Patel', initials: 'AP', subject: 'Computer Science', location: 'Delhi, India', rating: 4.9, price: 900 },
 ];
 
 export default function StudentDashboard() {
@@ -81,7 +81,39 @@ export default function StudentDashboard() {
       <div className="bg-gradient-to-r from-navy to-blue-700 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
         <div className="relative z-10">
           <h1 className="text-3xl font-sora font-extrabold mb-2">Hello, {user?.name || 'Student'}! 👋</h1>
-          <p className="text-blue-100 text-lg">Ready to learn something new today?</p>
+          <p className="text-blue-100 text-lg mb-8">Ready to learn something new today?</p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+              <div className="flex items-center gap-2 mb-2 text-blue-200">
+                <i className="fa-solid fa-calendar-check"></i>
+                <span className="text-xs font-semibold uppercase tracking-wider">Next Session</span>
+              </div>
+              <p className="font-bold text-lg leading-tight">Today 4:00 PM</p>
+              <p className="text-sm text-blue-100 mt-1">Ravi Kumar</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+              <div className="flex items-center gap-2 mb-2 text-blue-200">
+                <i className="fa-solid fa-book"></i>
+                <span className="text-xs font-semibold uppercase tracking-wider">Active Subjects</span>
+              </div>
+              <p className="font-bold text-lg leading-tight">3 Subjects</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+              <div className="flex items-center gap-2 mb-2 text-blue-200">
+                <i className="fa-solid fa-star"></i>
+                <span className="text-xs font-semibold uppercase tracking-wider">Avg Rating Given</span>
+              </div>
+              <p className="font-bold text-lg leading-tight">4.8</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+              <div className="flex items-center gap-2 mb-2 text-blue-200">
+                <i className="fa-solid fa-fire"></i>
+                <span className="text-xs font-semibold uppercase tracking-wider">Day Streak</span>
+              </div>
+              <p className="font-bold text-lg leading-tight">7 Days</p>
+            </div>
+          </div>
         </div>
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
       </div>
@@ -149,7 +181,7 @@ export default function StudentDashboard() {
             <h2 className="text-lg font-sora font-bold text-navy mb-4">Quick Actions</h2>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Find a Teacher', icon: 'fa-search', to: '/student/discover', bg: 'bg-blue-50', color: 'text-blue-600' },
+                { label: 'Find a Teacher', icon: 'fa-search', to: '/lessons/mathematics', bg: 'bg-blue-50', color: 'text-blue-600' },
                 { label: 'My Bookings', icon: 'fa-calendar-alt', to: '/student/bookings', bg: 'bg-green-50', color: 'text-green-600' },
                 { label: 'My Profile', icon: 'fa-user', to: '/student/profile', bg: 'bg-purple-50', color: 'text-purple-600' },
                 { label: 'Help', icon: 'fa-question-circle', to: '/contact', bg: 'bg-orange-50', color: 'text-orange-600' },
@@ -169,7 +201,7 @@ export default function StudentDashboard() {
             <h2 className="text-lg font-sora font-bold text-navy mb-4">Recently Viewed</h2>
             <div className="space-y-3">
               {recentTutors.map((tutor, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-gray-50 hover:bg-gray-50 transition cursor-pointer">
+                <Link key={i} to={`/lessons/${tutor.subject.toLowerCase().replace(/\s+/g, '-')}/${tutor.location.split(',')[0].trim().toLowerCase().replace(/\s+/g, '-')}/${tutor.name.toLowerCase().replace(/\s+/g, '-')}`} className="flex items-center gap-3 p-3 rounded-lg border border-gray-50 hover:bg-gray-50 transition cursor-pointer">
                   <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-sm">
                     {tutor.initials}
                   </div>
@@ -181,7 +213,7 @@ export default function StudentDashboard() {
                     <p className="text-sm font-bold text-navy">₹{tutor.price}</p>
                     <p className="text-xs text-amber-500 font-bold"><i className="fa-solid fa-star"></i> {tutor.rating}</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

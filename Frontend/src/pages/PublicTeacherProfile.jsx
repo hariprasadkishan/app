@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Share2, Heart, CheckCircle2, MapPin, Star, Calendar, Monitor, Award, BookOpen, Clock, AlertCircle } from 'lucide-react';
 import { tutors } from '../data/tutors';
 import TutorCard from '../components/shared/TutorCard';
+import { useUser } from '../context/UserContext';
 
 const getSubjectColor = (subject) => {
   const s = subject.toLowerCase();
@@ -38,30 +39,96 @@ const availabilityGrid = [
 ];
 
 const PublicTeacherProfile = () => {
-  const { teacherId } = useParams();
+  const { teacherId, id } = useParams();
+  const profileId = id || teacherId;
+  const { user } = useUser();
   const [activeTab, setActiveTab] = useState('About');
   const [saved, setSaved] = useState(false);
+  const [showQueryModal, setShowQueryModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('UPI');
+  const [queryForm, setQueryForm] = useState({ classLevel: '', mode: 'Online', days: [], time: 'Morning', message: '' });
+  const [querySuccessToast, setQuerySuccessToast] = useState(false);
+
+  const handleSendQueryClick = () => {
+    const passData = localStorage.getItem('trueedu_query_pass');
+    let hasAccess = false;
+    if (passData) {
+      try {
+        const parsed = JSON.parse(passData);
+        if (parsed.active && new Date(parsed.expiry) > new Date() && parsed.used < 5) {
+          hasAccess = true;
+        }
+      } catch(e){}
+    }
+    if (hasAccess) {
+      setShowQueryModal(true);
+    } else {
+      setShowPaymentModal(true);
+    }
+  };
+
+  const handlePaymentConfirm = () => {
+    setShowPaymentModal(false);
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 5);
+    localStorage.setItem('trueedu_query_pass', JSON.stringify({ active: true, used: 0, expiry }));
+    setShowQueryModal(true);
+  };
+
+  const handleQuerySubmit = (e) => {
+    e.preventDefault();
+    const passData = localStorage.getItem('trueedu_query_pass');
+    if (passData) {
+      const parsed = JSON.parse(passData);
+      parsed.used = (parsed.used || 0) + 1;
+      localStorage.setItem('trueedu_query_pass', JSON.stringify(parsed));
+    }
+    setShowQueryModal(false);
+    setQuerySuccessToast(true);
+    setTimeout(() => setQuerySuccessToast(false), 5000);
+  };
+
+  const tutorData = tutors.find(t => t.id.toString() === profileId);
 
   // Scroll to top on mount and update title
   useEffect(() => {
     window.scrollTo(0, 0);
-    const rawName = teacherId ? teacherId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Teacher Name';
+    const rawName = tutorData ? tutorData.name : (teacherId ? teacherId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Teacher Name');
     document.title = rawName + ' — TrueEdu';
-  }, [teacherId]);
+  }, [profileId, tutorData, teacherId]);
 
-  // Derive nice name from ID (e.g. "ravi-kumar" -> "Ravi Kumar")
-  const rawName = teacherId ? teacherId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Teacher Name';
+  if (!tutorData) {
+    return (
+      <div className="bg-slate-50 min-h-screen flex items-center justify-center p-6">
+        <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 text-center max-w-md w-full">
+          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 text-3xl mx-auto mb-6">
+            <AlertCircle className="w-10 h-10" />
+          </div>
+          <h1 className="font-sora font-extrabold text-2xl text-navy mb-3">Tutor Not Found</h1>
+          <p className="text-slate-500 font-medium mb-8">We couldn't find the tutor profile you're looking for. It might have been removed or the link is incorrect.</p>
+          <Link to="/student/discover" className="inline-block px-8 py-3.5 bg-navy text-white font-bold rounded-xl shadow-sm hover:shadow-md transition">
+            Browse All Tutors
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const teacher = {
-    name: rawName,
-    initials: rawName.split(' ').map(n=>n[0]).join('').slice(0,2),
-    subject: 'Mathematics',
-    location: 'Indiranagar, Bangalore',
-    rating: 4.9,
-    reviews: 127,
-    rate: 800,
-    experience: '5+ Years',
-    mode: 'Online & Offline',
-    verified: true
+    name: tutorData.name,
+    initials: tutorData.initials,
+    subject: tutorData.subject,
+    location: tutorData.location,
+    rating: tutorData.rating || 0,
+    reviews: tutorData.reviews || 0,
+    rate: tutorData.price,
+    experience: tutorData.experience,
+    mode: tutorData.mode,
+    verified: tutorData.verified,
+    bio: tutorData.bio || "Passionate educator with a focus on building strong fundamentals.",
+    boards: tutorData.tags || [],
+    languages: ["English", "Hindi", "Kannada"] // Mocked languages, as not present in all tutors
   };
 
   const similarTeachers = tutors.filter(t => t.subject === teacher.subject).slice(0, 3);
@@ -146,11 +213,14 @@ const PublicTeacherProfile = () => {
 
               {/* Desktop Fixed Button */}
               <div className="hidden md:block">
-                <Link to={`/book/${teacherId}`} className="w-full py-3.5 bg-gradient-to-r from-navy to-blue-600 text-white rounded-xl text-sm font-bold shadow-brand hover:shadow-brand-xl transition-all flex items-center justify-center gap-2 group">
+                <Link to={`/book/${teacherId}`} className="w-full py-3.5 bg-gradient-to-r from-navy to-blue-600 text-white rounded-xl text-sm font-bold shadow-brand hover:shadow-brand-xl transition-all flex items-center justify-center gap-2 group mb-3">
                   Book a Session
                   <i className="fa-solid fa-arrow-right text-[10px] opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 ml-1" />
                 </Link>
-                <p className="text-center text-[11px] text-muted font-medium mt-3"><AlertCircle className="w-3 h-3 inline mr-1" /> No payment required right now</p>
+                <button onClick={handleSendQueryClick} className="w-full py-3.5 bg-white border border-slate-200 text-navy rounded-xl text-sm font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                  <i className="fa-regular fa-comment" /> Send Query
+                </button>
+                <p className="text-center text-[11px] text-muted font-medium mt-3"><AlertCircle className="w-3 h-3 inline mr-1" /> No payment required to book</p>
               </div>
             </div>
           </div>
@@ -194,24 +264,22 @@ const PublicTeacherProfile = () => {
 
                   <h3 className="font-sora font-bold text-navy text-lg mb-3">About Me</h3>
                   <p className="text-sm text-slate-600 leading-relaxed mb-8 font-medium">
-                    Hello! I'm {teacher.name}, a passionate educator with over 5 years of experience specializing in Mathematics and Science. My teaching philosophy revolves around building a strong foundational understanding rather than rote memorization. I tailor my lesson plans to suit each student's unique learning pace, ensuring they not only score well but truly grasp the concepts.
+                    {teacher.bio}
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                     <div>
                       <h4 className="font-bold text-navy text-sm mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-slate-400" /> Subjects Taught</h4>
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md">Mathematics</span>
-                        <span className="text-xs font-bold bg-purple-50 text-purple-700 px-3 py-1.5 rounded-md">Physics</span>
+                        <span className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md">{teacher.subject}</span>
                       </div>
                     </div>
                     <div>
                       <h4 className="font-bold text-navy text-sm mb-3 flex items-center gap-2"><Award className="w-4 h-4 text-slate-400" /> Classes & Boards</h4>
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md">Class 6 to 12</span>
-                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md">JEE Main</span>
-                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md">CBSE</span>
-                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md">ICSE</span>
+                        {teacher.boards.map(b => (
+                          <span key={b} className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md">{b}</span>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -227,9 +295,9 @@ const PublicTeacherProfile = () => {
                     <div>
                       <h4 className="font-bold text-navy text-sm mb-3">Languages Spoken</h4>
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full">English</span>
-                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full">Hindi</span>
-                        <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full">Kannada</span>
+                        {teacher.languages.map(l => (
+                          <span key={l} className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full">{l}</span>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -251,17 +319,17 @@ const PublicTeacherProfile = () => {
                   {/* Summary */}
                   <div className="flex flex-col md:flex-row items-center gap-8 mb-10 bg-slate-50 p-6 rounded-xl border border-slate-100">
                     <div className="text-center md:text-left flex-shrink-0">
-                      <p className="font-sora font-extrabold text-5xl text-navy mb-2">4.9</p>
+                      <p className="font-sora font-extrabold text-5xl text-navy mb-2">{teacher.rating}</p>
                       <div className="flex gap-1 text-amber mb-1 justify-center md:justify-start">
-                        {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-amber" />)}
+                        {[1,2,3,4,5].map(i => <Star key={i} className={`w-4 h-4 ${i <= Math.round(teacher.rating) ? 'fill-amber' : 'fill-slate-200 text-slate-200'}`} />)}
                       </div>
-                      <p className="text-xs font-bold text-slate-500">Based on 127 reviews</p>
+                      <p className="text-xs font-bold text-slate-500">Based on {teacher.reviews} reviews</p>
                     </div>
                     
                     <div className="flex-1 w-full space-y-2">
                       {[
                         { stars: 5, pct: '80%' },
-                        { stars: 4, pct: '15%' },
+                        { stars: 4, pct: '10%' },
                         { stars: 3, pct: '5%' },
                         { stars: 2, pct: '0%' },
                         { stars: 1, pct: '0%' },
@@ -439,11 +507,124 @@ const PublicTeacherProfile = () => {
       </div>
 
       {/* Mobile Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] md:hidden z-40">
-        <Link to={`/book/${teacherId}`} className="w-full py-3.5 bg-gradient-to-r from-navy to-blue-600 text-white rounded-xl text-sm font-bold shadow-brand flex items-center justify-center gap-2">
-          Book a Session
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] md:hidden z-40 flex gap-3">
+        <button onClick={handleSendQueryClick} className="flex-1 py-3.5 bg-white border border-slate-200 text-navy rounded-xl text-sm font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+          Send Query
+        </button>
+        <Link to={`/book/${teacherId}`} className="flex-[2] py-3.5 bg-gradient-to-r from-navy to-blue-600 text-white rounded-xl text-sm font-bold shadow-brand flex items-center justify-center gap-2">
+          Book Session
         </Link>
       </div>
+
+      {/* Dummy Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-navy/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-brand shadow-2xl animate-scale-in overflow-hidden">
+            <div className="p-6 border-b border-slate-100 text-center">
+              <h3 className="font-sora font-bold text-xl text-navy">Secure Checkout</h3>
+              <p className="text-muted text-sm mt-1">Pay <strong className="text-navy">₹19</strong> to unlock 5 direct queries</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3 mb-6">
+                {['UPI', 'Credit/Debit Card', 'Net Banking'].map(method => (
+                  <button key={method} onClick={() => setPaymentMethod(method)} className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition ${paymentMethod === method ? 'border-navy bg-navy/5' : 'border-slate-100 hover:border-slate-300'}`}>
+                    <span className="font-semibold text-sm text-navy">{method}</span>
+                    {paymentMethod === method && <i className="fa-solid fa-circle-check text-navy" />}
+                  </button>
+                ))}
+              </div>
+              <button onClick={handlePaymentConfirm} className="w-full py-3.5 bg-success text-white rounded-lg font-sora font-semibold hover:bg-green-600 transition flex items-center justify-center gap-2">
+                <i className="fa-solid fa-lock" /> Pay ₹19 Securely
+              </button>
+              <button onClick={() => setShowPaymentModal(false)} className="w-full mt-3 py-2 text-muted text-sm font-medium hover:text-navy transition">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Query Form Modal */}
+      {showQueryModal && (
+        <div className="fixed inset-0 bg-navy/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto pt-20 pb-10">
+          <div className="bg-white w-full max-w-lg rounded-brand shadow-2xl animate-scale-in overflow-hidden my-auto">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-sora font-bold text-xl text-navy">Send a Query to {teacher.name}</h3>
+              <button onClick={() => setShowQueryModal(false)} className="text-slate-400 hover:text-navy"><i className="fa-solid fa-xmark text-xl" /></button>
+            </div>
+            <form onSubmit={handleQuerySubmit} className="p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-navy/70 mb-2 uppercase">Subject</label>
+                  <input type="text" readOnly value={teacher.subject} className="w-full py-2.5 px-3 bg-slate-100 border border-slate-200 rounded-md text-sm outline-none cursor-not-allowed text-slate-500 font-medium" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-navy/70 mb-2 uppercase">Your Class/Level</label>
+                  <input required type="text" value={queryForm.classLevel} onChange={e => setQueryForm({...queryForm, classLevel: e.target.value})} className="w-full py-2.5 px-3 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-navy" placeholder="e.g. Class 10" />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-semibold text-navy/70 mb-2 uppercase">Preferred Mode</label>
+                <div className="flex gap-2">
+                  {['Online', 'Offline', 'Both'].map(m => (
+                    <button type="button" key={m} onClick={() => setQueryForm({...queryForm, mode: m})} className={`flex-1 py-2 rounded-md text-sm font-semibold border ${queryForm.mode === m ? 'border-navy bg-navy/5 text-navy' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-navy/70 mb-2 uppercase">Preferred Days</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => (
+                    <label key={day} className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-md cursor-pointer hover:bg-slate-100">
+                      <input type="checkbox" className="accent-navy" checked={queryForm.days.includes(day)} onChange={(e) => {
+                        const newDays = e.target.checked ? [...queryForm.days, day] : queryForm.days.filter(d => d !== day);
+                        setQueryForm({...queryForm, days: newDays});
+                      }} />
+                      <span className="text-sm font-medium text-slate-700">{day}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-navy/70 mb-2 uppercase">Preferred Time</label>
+                <div className="flex gap-2">
+                  {['Morning', 'Afternoon', 'Evening'].map(t => (
+                    <button type="button" key={t} onClick={() => setQueryForm({...queryForm, time: t})} className={`flex-1 py-2 rounded-md text-sm font-semibold border ${queryForm.time === t ? 'border-navy bg-navy/5 text-navy' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-navy/70 mb-2 uppercase flex justify-between">
+                  <span>Message</span>
+                  <span className={queryForm.message.length > 300 ? 'text-red-500' : 'text-slate-400'}>{queryForm.message.length}/300</span>
+                </label>
+                <textarea required maxLength={300} rows="3" value={queryForm.message} onChange={e => setQueryForm({...queryForm, message: e.target.value})} className="w-full py-2.5 px-3 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-navy resize-none" placeholder="What do you need help with?" />
+              </div>
+
+              <button type="submit" className="w-full py-3.5 bg-navy text-white rounded-lg font-sora font-semibold hover:bg-navy-light transition flex items-center justify-center gap-2">
+                <i className="fa-regular fa-paper-plane" /> Send Query
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Toast */}
+      {querySuccessToast && (
+        <div className="fixed bottom-6 right-6 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 z-50 animate-fade-in">
+          <i className="fa-solid fa-circle-check text-xl" />
+          <div>
+            <p className="font-bold">Query sent!</p>
+            <p className="text-xs text-green-100">{teacher.name} will respond within 24 hours.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
