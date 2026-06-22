@@ -32,7 +32,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   }
 
   const user = await User.findById(decoded._id)
-    .select('_id role isActive isBanned')
+    .select('_id role isActive isBanned isMinor parentalConsentVerified')
     .lean();
 
   if (!user) {
@@ -61,7 +61,7 @@ export const optionalAuthenticate = asyncHandler(async (req, _res, next) => {
   try {
     const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
     const user = await User.findById(decoded._id)
-      .select('_id role isActive isBanned')
+      .select('_id role isActive isBanned isMinor parentalConsentVerified')
       .lean();
 
     if (user?.isActive && !user.isBanned) {

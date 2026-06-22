@@ -1,6 +1,7 @@
 import rateLimit from "express-rate-limit";
 import env from "../config/env.config.js";
 import ApiError from "../utils/ApiError.js";
+import { RATE_LIMITS } from "../constants/app.constants.js";
 
 // ─── Shared options ───────────────────────────────────────────────────────────
 const sharedOptions = {
@@ -72,4 +73,17 @@ export const paymentLimiter = rateLimit({
   keyGenerator: (req) => {
     return req.user?._id?.toString() || req.ip || "unknown";
   },
+});
+
+
+
+/** 
+ * Search Limiter — gates unauthenticated bot hammering 
+ * windowMs: 1 minute, max: 30 requests as per app.constants.js
+ */
+export const searchLimiter = rateLimit({
+  ...sharedOptions,
+  windowMs: RATE_LIMITS.SEARCH_WINDOW_MS,
+  max:      RATE_LIMITS.SEARCH_MAX,
+  keyGenerator: (req) => req.ip || "unknown",
 });

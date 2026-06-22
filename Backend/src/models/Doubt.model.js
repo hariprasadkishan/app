@@ -106,7 +106,7 @@ doubtSchema.index({ teacherId: 1, status: 1, createdAt: -1 });
 doubtSchema.index({ studentId: 1, classroomId: 1, createdAt: -1 });
 
 // ── Instance methods ──────────────────────────────────────────────────────────
-doubtSchema.methods.answer = async function (teacherId, text, attachmentUrls = []) {
+doubtSchema.methods.submitAnswer = async function (teacherId, text, attachmentUrls = []) {
   if (this.status === DOUBT_STATUS.CLOSED) throw new Error('Doubt is already closed');
   this.answer = { text, attachmentUrls, answeredBy: teacherId, answeredAt: new Date() };
   this.status = DOUBT_STATUS.ANSWERED;
