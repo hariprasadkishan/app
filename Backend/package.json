@@ -26,6 +26,8 @@
     "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.2",
+    "mongoose-aggregate-paginate-v2": "^1.1.4",
+    "mongoose-lean-virtuals": "^2.1.0",
     "mongoose-paginate-v2": "^1.9.5",
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
