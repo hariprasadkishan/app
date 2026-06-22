@@ -17,9 +17,12 @@ export { requireIdempotencyKey, optionalIdempotency } from './idempotency.middle
 export { verifyRazorpayWebhook } from './razorpayWebhook.middleware.js';
 export { validate, validateMultiple } from './validate.middleware.js';
 export {
-  uploadSingle,
-  uploadArray,
-  uploadFields,
+  handleProfileUpload,
+  handleKYCUpload,
+  handleSingleKYCDocument,
+  handleMaterialUpload,
+  handleClassroomMediaUpload,
+  handleSinglePdfUpload,
 } from './upload.middleware.js';
 export {
   globalLimiter,

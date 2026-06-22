@@ -211,10 +211,10 @@ export const REFUND_REASON = Object.freeze({
   OTHER:              'other',
 });
 
-// ── Age / Child Safety Limits ─────────────────────────────────────────────────
-export const AGE_LIMITS = Object.freeze({
-  MINOR_THRESHOLD: 18, 
-});
+// NOTE: AGE_LIMITS lives in app.constants.js (single source of truth) —
+// do not redefine it here; importing it from two files caused a silent
+// duplicate that would diverge over time. Import { AGE_LIMITS } from
+// '../constants/app.constants.js' everywhere (middlewares included).
 
 // ── Idempotency (For Preventing Anti-DDoS Duplicate Form Submissions) ─────────
 export const IDEMPOTENCY = Object.freeze({
