@@ -1,23 +1,28 @@
+import env from "../config/env.config.js";
+
+const isProd = env.NODE_ENV === "production";
+
 export const setAuthCookies = (res, { accessToken, refreshToken }) => {
-  // Access token cookie
   res.cookie("accessToken", accessToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 15 * 60 * 1000,
+    secure:   isProd,
+    sameSite: isProd ? "strict" : "lax",
+    maxAge:   15 * 60 * 1000, // 15 min
+    domain:   env.COOKIE_DOMAIN || undefined,
   });
 
-  // Refresh token — scoped path
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/api/auth",
+    secure:   isProd,
+    sameSite: isProd ? "strict" : "lax",
+    maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days
+    domain:   env.REFRESH_TOKEN_COOKIE_DOMAIN || env.COOKIE_DOMAIN || undefined,
+    path:     "/api/auth/refresh",
   });
 };
 
 export const clearAuthCookies = (res) => {
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken", { path: "/api/auth" });
+  const base = { httpOnly: true, secure: isProd };
+  res.clearCookie("accessToken", base);
+  res.clearCookie("refreshToken", { ...base, path: "/api/auth/refresh" });
 };

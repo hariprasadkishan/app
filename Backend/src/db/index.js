@@ -53,6 +53,8 @@ function attachMongooseEventHooks() {
   );
 }
 
+mongoose.set("sanitizeFilter", true);
+
 // ─── Connect with retry ───────────────────────────────────────────────────────
 
 export async function connectDB() {

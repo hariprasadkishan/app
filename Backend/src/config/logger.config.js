@@ -1,41 +1,21 @@
-/**
- * logger.config.js
- *
- * Structured, JSON-formatted logging via Winston.
- *
- * WHY JSON: Machine-parseable logs are essential for log aggregators
- * (Datadog, Loki, CloudWatch).  Every log entry carries a timestamp,
- * level, service tag, and correlation-ID slot so we can trace a request
- * end-to-end across distributed services.
- *
- * LEVELS (descending severity):
- *   error → warn → info → http → debug
- *
- * In production only warn+ goes to stdout; in development debug+ is shown
- * with human-readable colours for DX.
- */
-
 import { createLogger, format, transports } from "winston";
 import env from "./env.config.js";
 
 const { combine, timestamp, errors, json, colorize, printf, splat } = format;
-
-// ─── Dev-friendly console format ─────────────────────────────────────────────
 
 const devFormat = combine(
   colorize(),
   timestamp({ format: "HH:mm:ss" }),
   errors({ stack: true }),
   splat(),
-  printf(({ level, message, timestamp, correlationId, stack }) => {
-    const id = correlationId ? ` [${correlationId}]` : "";
+  printf(({ level, message, timestamp, correlationId, stack, ...meta }) => {
+    const id  = correlationId ? ` [${correlationId}]` : "";
+    const extra = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
     return stack
-      ? `${timestamp}${id} ${level}: ${message}\n${stack}`
-      : `${timestamp}${id} ${level}: ${message}`;
+      ? `${timestamp}${id} ${level}: ${message}${extra}\n${stack}`
+      : `${timestamp}${id} ${level}: ${message}${extra}`;
   })
 );
-
-// ─── Production JSON format ───────────────────────────────────────────────────
 
 const prodFormat = combine(
   timestamp(),
@@ -44,22 +24,15 @@ const prodFormat = combine(
   json()
 );
 
-// ─── Logger instance ──────────────────────────────────────────────────────────
-
 const logger = createLogger({
-  level: env.NODE_ENV === "production" ? "warn" : "debug",
-  defaultMeta: { service: "edtech-backend" },
+  level: env.LOG_LEVEL,
+  defaultMeta: { service: "trueed-backend" },
   format: env.NODE_ENV === "production" ? prodFormat : devFormat,
-  transports: [
-    new transports.Console(),
-    // Future: add transports.Http for centralised log drain
-    // Future: add DailyRotateFile for local file rotation
-  ],
+  transports: [new transports.Console()],
   exitOnError: false,
 });
 
-// ─── Convenience stream for Morgan (HTTP request logging) ────────────────────
-
+// Morgan stream
 logger.stream = {
   write: (message) => logger.http(message.trim()),
 };
