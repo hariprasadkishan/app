@@ -7,3 +7,7 @@ export const validateObjectId = (id, fieldName = "ID") => {
   }
   return new mongoose.Types.ObjectId(id);
 };
+
+export const toObjectId = (id) => new mongoose.Types.ObjectId(id);
+
+export const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);

@@ -1,25 +1,30 @@
-
-import mongoose              from 'mongoose';
-import mongoosePaginate      from 'mongoose-paginate-v2';
-import mongooseLeanVirtuals  from 'mongoose-lean-virtuals';
-
-import { ROLES }                            from '../constants/enums.js';
-import { jsonTransform, toObjectOptions,
-         phoneValidator, urlValidator,
-         defaultPaginateOptions }           from '../utils/schema.utils.js';
+// ─────────────────────────────────────────────────────────────────────────────
+// src/models/User.model.js
+// ─────────────────────────────────────────────────────────────────────────────
+import mongoose             from 'mongoose';
+import mongoosePaginate     from 'mongoose-paginate-v2';
+import mongooseLeanVirtuals from 'mongoose-lean-virtuals';
+import { ROLES }            from '../constants/enums.js';
+import {
+  jsonTransform,
+  toObjectOptions,
+  phoneValidator,
+  urlValidator,
+  defaultPaginateOptions,
+} from '../utils/schema.util.js';
 
 const { Schema } = mongoose;
 
 const userSchema = new Schema(
   {
-    // ── Identity ─────────────────────────────────────────────────────────────
+    // ── Identity ──────────────────────────────────────────────────────────────
     phone: {
-      type:      String,
-      required:  [true, 'Phone is required'],
-      unique:    true,
-      trim:      true,
-      validate:  phoneValidator,
-      index:     true,
+      type:     String,
+      required: [true, 'Phone is required'],
+      unique:   true,
+      trim:     true,
+      validate: phoneValidator,
+      index:    true,
     },
     role: {
       type:     String,
@@ -51,7 +56,14 @@ const userSchema = new Schema(
       validate: urlValidator,
       default:  null,
     },
-
+    // Google OAuth
+    googleId: {
+      type:   String,
+      trim:   true,
+      unique: true,
+      sparse: true,
+      index:  true,
+    },
     // ── Location ──────────────────────────────────────────────────────────────
     city: {
       type:    String,
@@ -59,79 +71,67 @@ const userSchema = new Schema(
       default: null,
       index:   true,
     },
-
-    // ── Auth flags ────────────────────────────────────────────────────────────
+    state: {
+      type:    String,
+      trim:    true,
+      default: null,
+    },
+    // ── Auth flags ─────────────────────────────────────────────────────────────
     isPhoneVerified: { type: Boolean, default: false },
+    // Teacher KYC — for teachers pending admin review
     kycStatus: {
       type:    String,
       enum:    ['pending', 'under_review', 'approved', 'rejected'],
       default: 'pending',
       index:   true,
     },
-    isActive:        { type: Boolean, default: true,  index: true },
-    isBanned:        { type: Boolean, default: false, index: true },
-    banReason:       { type: String,  trim: true,     default: null },
-
-    // ── Engagement / notifications ────────────────────────────────────────────
-    lastActiveAt:    { type: Date, default: null, index: true },
+    // Teacher verification hold — true while admin reviews teacher application
+    isVerificationPending: { type: Boolean, default: false },
+    isActive:  { type: Boolean, default: true,  index: true },
+    isBanned:  { type: Boolean, default: false, index: true },
+    banReason: { type: String,  trim: true,     default: null },
+    // ── Engagement ────────────────────────────────────────────────────────────
+    lastActiveAt: { type: Date, default: null, index: true },
     fcmTokens: {
       type:    [String],
       default: [],
       select:  false,
     },
-
-    // ── Favourites (student saves teacher profiles) ───────────────────────────
-    favourites: [
-      {
-        type:  Schema.Types.ObjectId,
-        ref:   'User',
-        index: true,
-      },
+    // ── Student: saved classrooms ──────────────────────────────────────────────
+    savedClassrooms: [
+      { type: Schema.Types.ObjectId, ref: 'Classroom' },
     ],
-
-    // ── Future wallet stub ────────────────────────────────────────────────────
-    walletBalance: {
-      type:    Number,
-      default: 0,
-      min:     [0, 'Wallet balance cannot be negative'],
-    },
-
     // ── Admin meta ────────────────────────────────────────────────────────────
-    onboardedAt:  { type: Date, default: null },
-    deletedAt:    { type: Date, default: null, index: true },
+    onboardedAt: { type: Date, default: null },
+    deletedAt:   { type: Date, default: null, index: true },
   },
   {
-    timestamps:  true,
-    toJSON:      jsonTransform,
-    toObject:    toObjectOptions,
+    timestamps: true,
+    toJSON:     jsonTransform,
+    toObject:   toObjectOptions,
   },
 );
 
-// ── Plugins ──────────────────────────────────────────────────────────────────
-
+// ── Plugins ───────────────────────────────────────────────────────────────────
 mongoosePaginate.paginate.options = defaultPaginateOptions;
 userSchema.plugin(mongoosePaginate);
 userSchema.plugin(mongooseLeanVirtuals);
 
-// ── Compound indexes ─────────────────────────────────────────────────────────
-
+// ── Indexes ───────────────────────────────────────────────────────────────────
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index({ isBanned: 1, role: 1 });
 userSchema.index({ deletedAt: 1 }, { sparse: true });
 
-// ── Virtuals ─────────────────────────────────────────────────────────────────
-
+// ── Virtuals ──────────────────────────────────────────────────────────────────
 userSchema.virtual('isDeleted').get(function () {
   return this.deletedAt !== null;
 });
-
 userSchema.virtual('displayName').get(function () {
   return this.name || `User_${this._id.toString().slice(-6)}`;
 });
 
-// ── Instance methods ─────────────────────────────────────────────────────────
-
+// ── Instance methods ──────────────────────────────────────────────────────────
 userSchema.methods.softDelete = async function () {
   this.deletedAt = new Date();
   this.isActive  = false;
@@ -146,12 +146,10 @@ userSchema.methods.ban = async function (reason) {
 };
 
 userSchema.methods.touchActivity = function () {
-  this.lastActiveAt = new Date();
   return this.constructor.updateOne({ _id: this._id }, { lastActiveAt: new Date() });
 };
 
-// ── Static methods ────────────────────────────────────────────────────────────
-
+// ── Static methods ─────────────────────────────────────────────────────────────
 userSchema.statics.findByPhone = function (phone) {
   return this.findOne({ phone: phone.trim(), deletedAt: null });
 };
@@ -164,10 +162,10 @@ userSchema.statics.listPaginated = function (filter = {}, options = {}) {
   const safeFilter = { deletedAt: null, ...filter };
   return this.paginate(safeFilter, {
     ...defaultPaginateOptions,
-    sort:   options.sort   || { createdAt: -1 },
-    page:   options.page   || 1,
-    limit:  options.limit  || 20,
-    select: options.select || '-fcmTokens -walletBalance',
+    sort:   options.sort  || { createdAt: -1 },
+    page:   options.page  || 1,
+    limit:  options.limit || 20,
+    select: options.select || '-fcmTokens',
     ...options,
   });
 };
@@ -175,10 +173,7 @@ userSchema.statics.listPaginated = function (filter = {}, options = {}) {
 userSchema.statics.signupAnalytics = function (startDate, endDate) {
   return this.aggregate([
     {
-      $match: {
-        createdAt:  { $gte: startDate, $lte: endDate },
-        deletedAt:  null,
-      },
+      $match: { createdAt: { $gte: startDate, $lte: endDate }, deletedAt: null },
     },
     {
       $group: {
@@ -190,31 +185,19 @@ userSchema.statics.signupAnalytics = function (startDate, endDate) {
   ]);
 };
 
-// ── Middleware hooks ─────────────────────────────────────────────────────────
-
+// ── Middleware ─────────────────────────────────────────────────────────────────
 userSchema.pre('save', function (next) {
-  if (this.isNew) {
-    this.onboardedAt = new Date();
-  }
+  if (this.isNew) this.onboardedAt = new Date();
+  if ((this.isBanned || this.deletedAt) && this.isActive) this.isActive = false;
   next();
 });
 
-userSchema.pre('save', function (next) {
-  if ((this.isBanned || this.deletedAt) && this.isActive) {
-    this.isActive = false;
-  }
-  next();
-});
-
-// ── Query helpers ─────────────────────────────────────────────────────────────
-
+// ── Query helpers ──────────────────────────────────────────────────────────────
 userSchema.query.active = function () {
   return this.where({ isActive: true, deletedAt: null });
 };
-
 userSchema.query.byRole = function (role) {
   return this.where({ role });
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 export const User = mongoose.model('User', userSchema);

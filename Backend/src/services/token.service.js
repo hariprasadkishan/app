@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import env from "../config/env.config.js";
+import ApiError from "../utils/ApiError.js";
 
 export const TokenService = {
   generateAccessToken(payload) {
@@ -16,33 +17,61 @@ export const TokenService = {
     });
   },
 
+  /**
+   * Generate both tokens for a user document.
+   * Payload is minimal — only what's needed for auth checks.
+   */
+  generateTokenPair(user) {
+    const payload = {
+      _id:  user._id.toString(),
+      role: user.role,
+    };
+    return {
+      accessToken:  this.generateAccessToken(payload),
+      refreshToken: this.generateRefreshToken(payload),
+    };
+  },
+
   verifyAccessToken(token) {
-    return jwt.verify(token, env.ACCESS_TOKEN_SECRET);
+    try {
+      return jwt.verify(token, env.ACCESS_TOKEN_SECRET);
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        throw ApiError.unauthorized("Access token expired. Please refresh.", "TOKEN_EXPIRED");
+      }
+      throw ApiError.unauthorized("Invalid access token.", "TOKEN_INVALID");
+    }
   },
 
   verifyRefreshToken(token) {
-    return jwt.verify(token, env.REFRESH_TOKEN_SECRET);
+    try {
+      return jwt.verify(token, env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        throw ApiError.unauthorized("Refresh token expired. Please login again.", "REFRESH_EXPIRED");
+      }
+      throw ApiError.unauthorized("Invalid refresh token.", "REFRESH_INVALID");
+    }
   },
 
-  // Refresh token cookie options — security hardened
   getRefreshCookieOptions() {
     return {
       httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days ms
-      domain: env.COOKIE_DOMAIN || undefined,
-      path: "/api/auth/refresh",  // ← Scope the cookie to refresh endpoint only
+      secure:   env.NODE_ENV === "production",
+      sameSite: env.NODE_ENV === "production" ? "strict" : "lax",
+      maxAge:   7 * 24 * 60 * 60 * 1000,
+      domain:   env.REFRESH_TOKEN_COOKIE_DOMAIN || env.COOKIE_DOMAIN || undefined,
+      path:     "/api/auth/refresh",
     };
   },
 
   getAccessCookieOptions() {
     return {
       httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000, // 15 min
-      domain: env.COOKIE_DOMAIN || undefined,
+      secure:   env.NODE_ENV === "production",
+      sameSite: env.NODE_ENV === "production" ? "strict" : "lax",
+      maxAge:   15 * 60 * 1000,
+      domain:   env.COOKIE_DOMAIN || undefined,
     };
   },
 };

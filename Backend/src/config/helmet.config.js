@@ -1,56 +1,34 @@
-/**
- * helmet.config.js
- *
- * Helmet middleware configuration for HTTP security headers.
- *
- * Each directive is explicitly reasoned — we avoid "turn everything on"
- * defaults because overly strict CSP breaks legitimate functionality.
- *
- * SCALABILITY: Helmet runs per-request but is O(1) — safe at any scale.
- */
+import env from "./env.config.js";
 
 const helmetOptions = {
-  // Content-Security-Policy: prevent XSS / data injection
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],  // Remove unsafe-inline once frontend is hardened
-      imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      frameSrc: ["'none'"],
-      upgradeInsecureRequests: [],
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],
+      imgSrc:      ["'self'", "data:", "https://res.cloudinary.com"],
+      connectSrc:  ["'self'"],
+      fontSrc:     ["'self'"],
+      objectSrc:   ["'none'"],
+      // Google Meet embeds (for online classes)
+      frameSrc:    ["'self'", "https://meet.google.com"],
+      upgradeInsecureRequests: env.NODE_ENV === "production" ? [] : undefined,
     },
   },
 
-  // Prevent MIME sniffing attacks
-  noSniff: true,
+  noSniff:          true,
+  xssFilter:        true,
+  hidePoweredBy:    true,
+  frameguard:       { action: "sameorigin" }, // relaxed from deny to allow GMeet iframes
+  referrerPolicy:   { policy: "strict-origin-when-cross-origin" },
 
-  // Force HTTPS for 1 year, include subdomains
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true,
-  },
+  hsts: env.NODE_ENV === "production"
+    ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+    : false,
 
-  // Deny framing to prevent clickjacking
-  frameguard: { action: "deny" },
-
-  // Disable X-Powered-By (don't advertise Express)
-  hidePoweredBy: true,
-
-  // XSS filter for legacy browsers
-  xssFilter: true,
-
-  // Referrer policy: only send origin on same-origin requests
-  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-
-  // Cross-Origin policies
-  crossOriginEmbedderPolicy: false,    // Relax for Cloudinary media
-  crossOriginOpenerPolicy: { policy: "same-origin" },
-  crossOriginResourcePolicy: { policy: "cross-origin" },  // Allow CDN resources
+  crossOriginEmbedderPolicy:  false,          // allow Cloudinary media
+  crossOriginOpenerPolicy:    { policy: "same-origin" },
+  crossOriginResourcePolicy:  { policy: "cross-origin" },
 };
 
 export default helmetOptions;
