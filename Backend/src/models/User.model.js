@@ -5,6 +5,7 @@
 import mongoose             from 'mongoose';
 import mongoosePaginate     from 'mongoose-paginate-v2';
 import mongooseLeanVirtuals from 'mongoose-lean-virtuals';
+import bcrypt               from 'bcryptjs';
 import { ROLES, AGE_LIMITS } from '../constants/enums.js';
 import {
   jsonTransform,
@@ -189,6 +190,12 @@ userSchema.methods.ban = async function (reason) {
 
 userSchema.methods.touchActivity = function () {
   return this.constructor.updateOne({ _id: this._id }, { lastActiveAt: new Date() });
+};
+
+// Verification method for password-based sign-in flows
+userSchema.methods.comparePassword = async function (plainPassword) {
+  if (!this.passwordHash) return false;
+  return bcrypt.compare(plainPassword, this.passwordHash);
 };
 
 // ── Static methods ─────────────────────────────────────────────────────────────
