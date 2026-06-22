@@ -56,6 +56,27 @@ const userSchema = new Schema(
       validate: urlValidator,
       default:  null,
     },
+    // ── Minor / Parental consent (Trust & Safety) ───────────────────────────────
+    dateOfBirth: {
+      type:    Date,
+      default: null,
+    },
+    isMinor: {
+      type:    Boolean,
+      default: false,
+      index:   true,
+    },
+    parentalConsentVerified: {
+      type:    Boolean,
+      default: false,
+    },
+    parentGuardian: {
+      name:           { type: String, trim: true, default: null },
+      phone:          { type: String, trim: true, default: null },
+      relation:       { type: String, trim: true, default: null },
+      consentedAt:    { type: Date, default: null },
+      consentTokenHash: { type: String, trim: true, default: null, select: false },
+    },
     // Google OAuth
     googleId: {
       type:   String,
@@ -189,6 +210,11 @@ userSchema.statics.signupAnalytics = function (startDate, endDate) {
 userSchema.pre('save', function (next) {
   if (this.isNew) this.onboardedAt = new Date();
   if ((this.isBanned || this.deletedAt) && this.isActive) this.isActive = false;
+  if (this.isModified('dateOfBirth') && this.dateOfBirth) {
+    const ageMs = Date.now() - this.dateOfBirth.getTime();
+    const ageYears = ageMs / (365.25 * 24 * 60 * 60 * 1000);
+    this.isMinor = ageYears < 18;
+  }
   next();
 });
 
