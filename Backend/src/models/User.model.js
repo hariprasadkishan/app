@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/models/User.model.js
+// Production-grade optimized model with explicit MFA, Passwords, and Trust Badges.
 // ─────────────────────────────────────────────────────────────────────────────
 import mongoose             from 'mongoose';
 import mongoosePaginate     from 'mongoose-paginate-v2';
 import mongooseLeanVirtuals from 'mongoose-lean-virtuals';
-import { ROLES }            from '../constants/enums.js';
+import { ROLES, AGE_LIMITS } from '../constants/enums.js';
 import {
   jsonTransform,
   toObjectOptions,
@@ -56,7 +57,23 @@ const userSchema = new Schema(
       validate: urlValidator,
       default:  null,
     },
-    // ── Minor / Parental consent (Trust & Safety) ───────────────────────────────
+    // ── Cyber Security: Password & MFA (FOUNDER REQUIREMENTS GATEWAY) ──────────
+    passwordHash: {
+      type:     String,
+      select:   false, // Strict security encapsulation
+      default:  null,
+    },
+    mfaEnabled: {
+      type:    Boolean,
+      default: false,
+      index:   true,
+    },
+    mfaSecret: {
+      type:    String,
+      select:  false, // Encrypted TOTP seed mapping
+      default: null,
+    },
+    // ── Minor / Parental consent (Trust & Safety Child Guard) ────────────────
     dateOfBirth: {
       type:    Date,
       default: null,
@@ -71,10 +88,10 @@ const userSchema = new Schema(
       default: false,
     },
     parentGuardian: {
-      name:           { type: String, trim: true, default: null },
-      phone:          { type: String, trim: true, default: null },
-      relation:       { type: String, trim: true, default: null },
-      consentedAt:    { type: Date, default: null },
+      name:        { type: String, trim: true, default: null },
+      phone:       { type: String, trim: true, default: null, validate: phoneValidator },
+      relation:    { type: String, trim: true, default: null },
+      consentedAt: { type: Date, default: null },
       consentTokenHash: { type: String, trim: true, default: null, select: false },
     },
     // Google OAuth
@@ -99,14 +116,12 @@ const userSchema = new Schema(
     },
     // ── Auth flags ─────────────────────────────────────────────────────────────
     isPhoneVerified: { type: Boolean, default: false },
-    // Teacher KYC — for teachers pending admin review
     kycStatus: {
       type:    String,
       enum:    ['pending', 'under_review', 'approved', 'rejected'],
       default: 'pending',
       index:   true,
     },
-    // Teacher verification hold — true while admin reviews teacher application
     isVerificationPending: { type: Boolean, default: false },
     isActive:  { type: Boolean, default: true,  index: true },
     isBanned:  { type: Boolean, default: false, index: true },
@@ -152,6 +167,12 @@ userSchema.virtual('displayName').get(function () {
   return this.name || `User_${this._id.toString().slice(-6)}`;
 });
 
+// ── CRITICAL RESOLUTION FOR TRUST BADGE REQUIREMENT ──────────────────────────
+// Yeh frontend ko automatic response pass karega true badge link karne ke liye
+userSchema.virtual('hasVerifiedTeacherBadge').get(function () {
+  return this.role === ROLES.TEACHER && this.kycStatus === 'approved';
+});
+
 // ── Instance methods ──────────────────────────────────────────────────────────
 userSchema.methods.softDelete = async function () {
   this.deletedAt = new Date();
@@ -191,34 +212,20 @@ userSchema.statics.listPaginated = function (filter = {}, options = {}) {
   });
 };
 
-userSchema.statics.signupAnalytics = function (startDate, endDate) {
-  return this.aggregate([
-    {
-      $match: { createdAt: { $gte: startDate, $lte: endDate }, deletedAt: null },
-    },
-    {
-      $group: {
-        _id:   { role: '$role', date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } } },
-        count: { $sum: 1 },
-      },
-    },
-    { $sort: { '_id.date': 1 } },
-  ]);
-};
-
-// ── Middleware ─────────────────────────────────────────────────────────────────
+// ── Middleware Hooks ───────────────────────────────────────────────────────────
 userSchema.pre('save', function (next) {
   if (this.isNew) this.onboardedAt = new Date();
   if ((this.isBanned || this.deletedAt) && this.isActive) this.isActive = false;
+  
+  // Clean registry usage mapping instead of hardcoded numbers
   if (this.isModified('dateOfBirth') && this.dateOfBirth) {
     const ageMs = Date.now() - this.dateOfBirth.getTime();
     const ageYears = ageMs / (365.25 * 24 * 60 * 60 * 1000);
-    this.isMinor = ageYears < 18;
+    this.isMinor = ageYears < AGE_LIMITS.MINOR_THRESHOLD;
   }
   next();
 });
 
-// ── Query helpers ──────────────────────────────────────────────────────────────
 userSchema.query.active = function () {
   return this.where({ isActive: true, deletedAt: null });
 };

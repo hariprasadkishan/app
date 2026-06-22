@@ -118,6 +118,7 @@ export const DOUBT_VISIBILITY = Object.freeze({
   PRIVATE: 'private',  // visible only to teacher
 });
 
+// ── Dynamic Badges / Trust Enums ──────────────────────────────────────────────
 export const DOUBT_STATUS = Object.freeze({
   OPEN:     'open',
   ANSWERED: 'answered',
@@ -210,15 +211,15 @@ export const REFUND_REASON = Object.freeze({
   OTHER:              'other',
 });
 
-// ── Age / Consent ──────────────────────────────────────────────────────────────
+// ── Age / Child Safety Limits ─────────────────────────────────────────────────
 export const AGE_LIMITS = Object.freeze({
-  MINOR_THRESHOLD: 18, // below this age, parental consent is mandatory
+  MINOR_THRESHOLD: 18, 
 });
 
-// ── Idempotency ────────────────────────────────────────────────────────────────
+// ── Idempotency (For Preventing Anti-DDoS Duplicate Form Submissions) ─────────
 export const IDEMPOTENCY = Object.freeze({
   HEADER: 'Idempotency-Key',
-  TTL_MS: 24 * 60 * 60 * 1000, // 24h — long enough to cover client retries
+  TTL_MS: 24 * 60 * 60 * 1000, 
 });
 
 // ── Static data ───────────────────────────────────────────────────────────────
@@ -242,12 +243,12 @@ export const CLASS_GRADES = Object.freeze([
 
 // ── Platform financial constants ──────────────────────────────────────────────
 export const PLATFORM_FEE = Object.freeze({
-  TOKEN_PRICE_PAISE:        1900,  // ₹19 for 3 tokens
+  TOKEN_PRICE_PAISE:        1900,  
   TOKENS_PER_PURCHASE:      3,
-  TEACHER_DEPOSIT_PERCENT:  4,     // 4% of enrollment fee, charged to teacher on query accept
-  PLATFORM_CUT_CASE1:       15,    // % platform takes on successful completion
-  TEACHER_SHARE_CASE1:      89,    // % teacher gets (100 - 15 + 4 already held)
-  PLATFORM_CUT_CASE2:       4,     // % platform keeps when teacher leaves before 50%
-  PLATFORM_CUT_CASE3:       14,    // % platform takes in case 3
-  STUDENT_FIXED_REFUND_CASE3: 30,  // % fixed refund to student in case 3
+  TEACHER_DEPOSIT_PERCENT:  4,     
+  PLATFORM_CUT_CASE1:       15,    
+  TEACHER_SHARE_CASE1:      89,    
+  PLATFORM_CUT_CASE2:       4,     
+  PLATFORM_CUT_CASE3:       14,    
+  STUDENT_FIXED_REFUND_CASE3: 30,  
 });
