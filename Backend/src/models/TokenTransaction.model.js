@@ -20,7 +20,7 @@ const tokenTransactionSchema = new Schema(
     },
     walletId: {
       type:     Schema.Types.ObjectId,
-      ref:      'TokenWallet',
+      ref:      'StudentWallet',
       required: [true, 'Wallet ID is required'],
       index:    true,
     },

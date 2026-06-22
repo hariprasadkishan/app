@@ -1,6 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/models/index.js
-// Production-Ready Model Registry with all structural fixes integrated.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { User } from './User.model.js';
@@ -11,8 +10,8 @@ import { Review } from './Review.model.js';
 import { Classroom } from './Classroom.model.js';
 import { EnrollmentQuery } from './Enrollmentquery.model.js';
 import { Enrollment } from './Enrollment.model.js';
-import { TokenWallet } from './StudentWallet.model.js';
-import { TokenTransaction } from './TokenTransaction.model.js'; // Fixed Anti-pattern entry
+import { StudentWallet } from './StudentWallet.model.js';
+import { TokenTransaction } from './TokenTransaction.model.js';
 import { Payment } from './Payment.model.js';
 import { Payout } from './Payout.model.js';
 import { Doubt } from './Doubt.model.js';
