@@ -1,10 +1,48 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// src/models/index.js
+// Production-Ready Model Registry with all structural fixes integrated.
+// ─────────────────────────────────────────────────────────────────────────────
 
-export { User }           from './User.model.js';
-export { TeacherProfile } from './TeacherProfile.model.js';
-export { Document }       from './Document.model.js';
-export { Booking }        from './Booking.model.js';
-export { Payment }        from './Payment.model.js';
-export { Payout }         from './Payout.model.js';
-export { RefundRequest }  from './RefundRequest.model.js';
-export { OtpSession }     from './OtpSession.model.js';
-export { Review }         from './Review.model.js';
+import { User } from './User.model.js';
+import { TeacherProfile } from './TeacherProfile.model.js';
+import { Document } from './Document.model.js';
+import { OtpSession } from './OtpSession.model.js';
+import { Review } from './Review.model.js';
+import { Classroom } from './Classroom.model.js';
+import { EnrollmentQuery } from './Enrollmentquery.model.js';
+import { Enrollment } from './Enrollment.model.js';
+import { TokenWallet } from './StudentWallet.model.js';
+import { TokenTransaction } from './TokenTransaction.model.js'; // Fixed Anti-pattern entry
+import { Payment } from './Payment.model.js';
+import { Payout } from './Payout.model.js';
+import { Doubt } from './Doubt.model.js';
+import { Announcement } from './Announcement.model.js';
+import { Assignment } from './Assignment.model.js';
+import { Material } from './Material.model.js';
+import { Poll } from './Poll.model.js';
+import { ExtraClass } from './ExtraClass.model.js';
+import { RefundRequest } from './RefundRequest.model.js';
+import { Report } from './Report.model.js';
+
+export {
+  User,
+  TeacherProfile,
+  Document,
+  OtpSession,
+  Review,
+  Classroom,
+  EnrollmentQuery,
+  Enrollment,
+  StudentWallet,
+  TokenTransaction,
+  Payment,
+  Payout,
+  Doubt,
+  Announcement,
+  Assignment,
+  Material,
+  Poll,
+  ExtraClass,
+  RefundRequest,
+  Report
+};
