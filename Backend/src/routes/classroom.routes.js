@@ -5,9 +5,12 @@ import { requireTeacher }    from '../middlewares/teacher.middleware.js';
 import { requireStudent }    from '../middlewares/student.middleware.js';
 import { checkOwnership }    from '../middlewares/ownership.middleware.js';
 import { requireParentalConsentIfMinor } from '../middlewares/minorConsent.middleware.js';
-import { handleClassroomMediaUpload, handleMaterialUpload, handleSinglePdfUpload } from '../middlewares/upload.middleware.js';
+import {
+  handleClassroomMediaUpload,
+  handleMaterialUpload,
+} from '../middlewares/upload.middleware.js';
 import { searchLimiter, uploadLimiter } from '../middlewares/rateLimit.middleware.js';
-import { Classroom }         from '../models/index.js';
+import { Classroom } from '../models/index.js';
 
 import {
   createClassroom, updateClassroom, searchClassrooms,
@@ -94,8 +97,8 @@ router.post('/:classroomId/doubts', authenticate, requireStudent, requireParenta
 router.get('/:classroomId/doubts',  authenticate, getClassroomDoubts);
 router.get('/:classroomId/doubts/:doubtId', authenticate, getDoubtDetail);
 router.patch('/:classroomId/doubts/:doubtId/answer', authenticate, requireTeacher, answerDoubt);
-router.post('/:classroomId/doubts/:doubtId/upvote', authenticate, requireStudent, upvoteDoubt);
-router.patch('/:classroomId/doubts/:doubtId/close', authenticate, closeDoubt);
+router.post('/:classroomId/doubts/:doubtId/upvote',  authenticate, requireStudent, upvoteDoubt);
+router.patch('/:classroomId/doubts/:doubtId/close',  authenticate, closeDoubt);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MATERIALS
@@ -123,15 +126,20 @@ router.delete('/:classroomId/announcements/:announcementId', authenticate, requi
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.post('/:classroomId/assignments', authenticate, requireTeacher, createAssignment);
+router.patch('/:classroomId/assignments/:assignmentId', authenticate, requireTeacher, updateAssignment);
 router.get('/:classroomId/assignments',  authenticate, getAssignments);
 router.get('/:classroomId/assignments/:assignmentId', authenticate, getAssignmentDetail);
-router.patch('/:classroomId/assignments/:assignmentId', authenticate, requireTeacher, updateAssignment);
+
+// FIX: handleMaterialUpload (multer.array → req.files) instead of handleSinglePdfUpload
+// (multer.single → req.file). assignment.controller.js reads req.files (plural), so
+// using single() silently drops every submitted file. handleMaterialUpload corrects this.
 router.post(
   '/:classroomId/assignments/:assignmentId/submit',
-  authenticate, requireStudent, requireParentalConsentIfMinor,
-  ...handleSinglePdfUpload,
+  authenticate, requireStudent, requireParentalConsentIfMinor, uploadLimiter,
+  ...handleMaterialUpload,
   submitAssignment,
 );
+
 router.patch('/:classroomId/assignments/:assignmentId/grade', authenticate, requireTeacher, gradeSubmission);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,7 +149,7 @@ router.patch('/:classroomId/assignments/:assignmentId/grade', authenticate, requ
 router.post('/:classroomId/polls', authenticate, requireTeacher, createPoll);
 router.get('/:classroomId/polls',  authenticate, getClassroomPolls);
 router.get('/:classroomId/polls/:pollId', authenticate, getPollDetail);
-router.post('/:classroomId/polls/:pollId/vote', authenticate, requireStudent, votePoll);
+router.post('/:classroomId/polls/:pollId/vote',   authenticate, requireStudent, votePoll);
 router.patch('/:classroomId/polls/:pollId/close', authenticate, requireTeacher, closePoll);
 
 // ─────────────────────────────────────────────────────────────────────────────
