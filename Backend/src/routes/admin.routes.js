@@ -1,121 +1,61 @@
 // src/routes/admin.routes.js
-
 import { Router } from 'express';
-import {
-  getAdminStats,
-  getPendingTeachers,
-  getAllTeachers,
-  getTeacherDetail,
-  approveTeacher,
-  rejectTeacher,
-  suspendTeacher,
-  getAllBookings,
-  getRefundRequests,
-  approveRefund,
-  rejectRefund,
-  getRevenueAnalytics,
-  getAllUsers,
-  banUser,
-} from '../controllers/admin.controller.js';
-import { authenticate }  from '../middlewares/auth.middleware.js';
+import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin }  from '../middlewares/admin.middleware.js';
-import { validate }      from '../middlewares/validate.middleware.js';
 import {
-  approveTeacherSchema,
-  rejectTeacherSchema,
-  suspendTeacherSchema,
-  approveRefundSchema,
-  rejectRefundSchema,
-  banUserSchema,
-  adminListQuerySchema,
-  analyticsQuerySchema,
-} from '../validators/admin.validator.js';
+  getPendingTeachers, approveTeacher, rejectTeacher, getAllTeachers, suspendTeacher,
+  getPendingDocuments, approveDocument, rejectDocument,
+  getPendingExtraClasses, approveExtraClass, rejectExtraClass,
+  getOpenReports, resolveReport, dismissReport, getClassroomRiskSummary,
+  approveManualRefund,
+  getAllClassrooms, cancelClassroom,
+  getAllUsers, banUser, unbanUser,
+  hideReview,
+  getPlatformStats,
+} from '../controllers/admin.controller.js';
 
 const router = Router();
-
-// All admin routes require authentication + admin role
 router.use(authenticate, requireAdmin);
 
-// ── Dashboard stats ───────────────────────────────────────────────────────────
-router.get('/stats', getAdminStats);
+// ── Teachers ──────────────────────────────────────────────────────────────────
+router.get('/teachers',                       getAllTeachers);
+router.get('/teachers/pending',               getPendingTeachers);
+router.patch('/teachers/:teacherId/approve',  approveTeacher);
+router.patch('/teachers/:teacherId/reject',   rejectTeacher);
+router.patch('/teachers/:teacherId/suspend',  suspendTeacher);
 
-// ── Teacher management ────────────────────────────────────────────────────────
-router.get(
-  '/teachers/pending',
-  validate(adminListQuerySchema, 'query'),
-  getPendingTeachers,
-);
+// ── Documents ─────────────────────────────────────────────────────────────────
+router.get('/documents/pending',        getPendingDocuments);
+router.patch('/documents/:id/approve',  approveDocument);
+router.patch('/documents/:id/reject',   rejectDocument);
 
-router.get(
-  '/teachers',
-  validate(adminListQuerySchema, 'query'),
-  getAllTeachers,
-);
+// ── Extra Classes ─────────────────────────────────────────────────────────────
+router.get('/extra-classes/pending',        getPendingExtraClasses);
+router.patch('/extra-classes/:id/approve',  approveExtraClass);
+router.patch('/extra-classes/:id/reject',   rejectExtraClass);
 
-router.get('/teachers/:teacherId', getTeacherDetail);
+// ── Reports ───────────────────────────────────────────────────────────────────
+router.get('/reports',                    getOpenReports);
+router.get('/reports/risk-summary',       getClassroomRiskSummary);
+router.patch('/reports/:id/resolve',      resolveReport);
+router.patch('/reports/:id/dismiss',      dismissReport);
 
-router.post(
-  '/teachers/:teacherId/approve',
-  validate(approveTeacherSchema),
-  approveTeacher,
-);
+// ── Refunds ───────────────────────────────────────────────────────────────────
+router.patch('/refunds/:id/approve', approveManualRefund);
 
-router.post(
-  '/teachers/:teacherId/reject',
-  validate(rejectTeacherSchema),
-  rejectTeacher,
-);
+// ── Classrooms ────────────────────────────────────────────────────────────────
+router.get('/classrooms',                          getAllClassrooms);
+router.patch('/classrooms/:classroomId/cancel',    cancelClassroom);
 
-router.post(
-  '/teachers/:teacherId/suspend',
-  validate(suspendTeacherSchema),
-  suspendTeacher,
-);
+// ── Users ─────────────────────────────────────────────────────────────────────
+router.get('/users',                    getAllUsers);
+router.patch('/users/:userId/ban',      banUser);
+router.patch('/users/:userId/unban',    unbanUser);
 
-// ── Booking management ────────────────────────────────────────────────────────
-router.get(
-  '/bookings',
-  validate(adminListQuerySchema, 'query'),
-  getAllBookings,
-);
+// ── Reviews ───────────────────────────────────────────────────────────────────
+router.patch('/reviews/:reviewId/hide', hideReview);
 
-// ── Refund management ─────────────────────────────────────────────────────────
-router.get(
-  '/refunds',
-  validate(adminListQuerySchema, 'query'),
-  getRefundRequests,
-);
-
-router.post(
-  '/refunds/:refundId/approve',
-  validate(approveRefundSchema),
-  approveRefund,
-);
-
-router.post(
-  '/refunds/:refundId/reject',
-  validate(rejectRefundSchema),
-  rejectRefund,
-);
-
-// ── Analytics ─────────────────────────────────────────────────────────────────
-router.get(
-  '/analytics/revenue',
-  validate(analyticsQuerySchema, 'query'),
-  getRevenueAnalytics,
-);
-
-// ── User management ───────────────────────────────────────────────────────────
-router.get(
-  '/users',
-  validate(adminListQuerySchema, 'query'),
-  getAllUsers,
-);
-
-router.post(
-  '/users/:userId/ban',
-  validate(banUserSchema),
-  banUser,
-);
+// ── Stats ─────────────────────────────────────────────────────────────────────
+router.get('/stats', getPlatformStats);
 
 export default router;

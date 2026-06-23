@@ -1,382 +1,275 @@
 // src/controllers/teacher.controller.js
-import mongoose from "mongoose";
-import { User, TeacherProfile, Document, Booking, Payout } from "../models/index.js";
-import { CloudinaryService } from "../services/cloudinary.service.js";
-import { NotificationService } from "../services/notification.service.js";
-import ApiError from "../utils/ApiError.js";
-import ApiResponse from "../utils/ApiResponse.js";
-import { asyncHandler } from "../utils/AsyncHandler.js";
-import { validateObjectId } from "../utils/objectId.util.js";
-import { paginate } from "../utils/pagination.util.js";
-import { VERIFICATION_STATUS, DOCUMENT_TYPE, BOOKING_STATUS } from "../constants/enums.js";
-import logger from "../config/logger.config.js";
+import mongoose from 'mongoose';
+import {
+  User, TeacherProfile, Document, Classroom, Doubt,
+  EnrollmentQuery, ExtraClass, Review, Enrollment,
+} from '../models/index.js';
+import { CloudinaryService } from '../services/cloudinary.service.js';
+import { asyncHandler }      from '../utils/AsyncHandler.js';
+import ApiError              from '../utils/ApiError.js';
+import ApiResponse           from '../utils/ApiResponse.js';
+import { DOCUMENT_TYPE, DOCUMENT_STATUS, VERIFICATION_STATUS } from '../constants/enums.js';
+import { CLOUDINARY_FOLDERS } from '../constants/app.constants.js';
+import logger                from '../config/logger.config.js';
 
-// ── GET /api/v1/teachers ──────────────────────────────────────────────────────
-// Public — search & paginate approved teachers
-export const searchTeachers = asyncHandler(async (req, res) => {
+// ── POST /onboarding/profile ──────────────────────────────────────────────────
+export const submitProfile = asyncHandler(async (req, res) => {
   const {
-    subjects, classGrades, city, minRate, maxRate,
-    nearLng, nearLat, maxDistanceKm = 50,
-    minRating = 0, textQuery,
-    page = 1, limit = 20, sort = "rating",
-  } = req.query;
+    bio, headline, subjects, languages, city, state, country,
+    experienceYears, education, bankAccount, portfolioUrls,
+  } = req.body;
 
-  const result = await TeacherProfile.search({
-    subjects: subjects ? (Array.isArray(subjects) ? subjects : [subjects]) : undefined,
-    classGrades: classGrades ? (Array.isArray(classGrades) ? classGrades : [classGrades]) : undefined,
-    city,
-    minRate: minRate ? Number(minRate) : undefined,
-    maxRate: maxRate ? Number(maxRate) : undefined,
-    nearLng: nearLng ? Number(nearLng) : undefined,
-    nearLat: nearLat ? Number(nearLat) : undefined,
-    maxDistanceKm: Number(maxDistanceKm),
-    minRating: Number(minRating),
-    textQuery,
-    page: Number(page),
-    limit: Math.min(Number(limit), 50),
-    sort,
-  });
-
-  res.status(200).json(new ApiResponse(200, paginate(result), "Teachers fetched"));
-});
-
-// ── GET /api/v1/teachers/:teacherId ──────────────────────────────────────────
-// Public — teacher profile page
-export const getTeacherPublicProfile = asyncHandler(async (req, res) => {
-  const teacherId = validateObjectId(req.params.teacherId, "teacherId");
-
-  const profile = await TeacherProfile.findOne({ userId: teacherId, verificationStatus: VERIFICATION_STATUS.APPROVED })
-    .populate("userId", "name avatarUrl phone")
-    .lean({ virtuals: true });
-
-  if (!profile) {
-    throw new ApiError(404, "Teacher not found or not verified", [], "TEACHER_NOT_FOUND");
+  if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
+    throw ApiError.badRequest('At least one subject is required');
   }
 
-  // Never expose phone in public profile
-  if (profile.userId?.phone) delete profile.userId.phone;
-
-  res.status(200).json(new ApiResponse(200, { profile }, "Teacher profile fetched"));
-});
-
-// ── GET /api/v1/teachers/me/profile ──────────────────────────────────────────
-// Authenticated teacher — their own full profile
-export const getMyProfile = asyncHandler(async (req, res) => {
-  const profile = await TeacherProfile.findOne({ userId: req.user._id })
-    .populate("userId", "name email phone avatarUrl kycStatus")
-    .lean({ virtuals: true });
-
-  if (!profile) {
-    throw new ApiError(404, "Teacher profile not found. Please complete KYC.", [], "PROFILE_NOT_FOUND");
-  }
-
-  res.status(200).json(new ApiResponse(200, { profile }, "Profile fetched"));
-});
-
-// ── POST /api/v1/teachers/kyc ─────────────────────────────────────────────────
-// Teacher submits KYC (create or update profile)
-export const submitKyc = asyncHandler(async (req, res) => {
-  const { bio, headline, subjects, classGrades, boards, hourlyRatePaise,
-    experienceYears, onlineOnly, city, state, languages } = req.body;
-
-  const existingProfile = await TeacherProfile.findOne({ userId: req.user._id });
-
-  if (existingProfile && existingProfile.verificationStatus === VERIFICATION_STATUS.APPROVED) {
-    throw new ApiError(400, "Profile already approved. Use update endpoints.", [], "ALREADY_APPROVED");
-  }
-
-  const profileData = {
-    userId: req.user._id,
-    bio, headline,
-    subjects: Array.isArray(subjects) ? subjects : [subjects],
-    classGrades: classGrades ? (Array.isArray(classGrades) ? classGrades : [classGrades]) : [],
-    boards: boards ? (Array.isArray(boards) ? boards : [boards]) : [],
-    hourlyRatePaise: Number(hourlyRatePaise),
-    experienceYears: Number(experienceYears) || 0,
-    onlineOnly: Boolean(onlineOnly),
-    city: city?.trim().toLowerCase(),
-    state: state?.trim().toLowerCase(),
-    languages: languages ? (Array.isArray(languages) ? languages : [languages]) : ["Hindi", "English"],
-    verificationStatus: VERIFICATION_STATUS.PENDING,
-  };
-
-  let profile;
-  if (existingProfile) {
-    Object.assign(existingProfile, profileData);
-    profile = await existingProfile.save();
-  } else {
-    profile = await TeacherProfile.create(profileData);
-  }
-
-  // Update user kycStatus
-  await User.findByIdAndUpdate(req.user._id, { kycStatus: "pending" });
-
-  logger.info("KYC submitted", { userId: req.user._id, correlationId: req.correlationId });
-
-  res.status(200).json(new ApiResponse(200, { profileId: profile._id }, "KYC submitted for review"));
-});
-
-// ── PUT /api/v1/teachers/me/profile ──────────────────────────────────────────
-// Approved teacher updates their profile
-export const updateMyProfile = asyncHandler(async (req, res) => {
-  const ALLOWED = ["bio", "headline", "subjects", "classGrades", "boards",
-    "hourlyRatePaise", "experienceYears", "onlineOnly", "city", "state",
-    "languages", "introVideoUrl", "portfolioUrls", "isAvailable"];
-
-  const updates = {};
-  for (const key of ALLOWED) {
-    if (req.body[key] !== undefined) updates[key] = req.body[key];
-  }
-
-  if (updates.hourlyRatePaise) updates.hourlyRatePaise = Number(updates.hourlyRatePaise);
-  if (updates.city) updates.city = updates.city.trim().toLowerCase();
-
-  const profile = await TeacherProfile.findOneAndUpdate(
-    { userId: req.user._id },
-    { $set: updates },
-    { new: true, runValidators: true }
-  ).lean({ virtuals: true });
-
-  if (!profile) {
-    throw new ApiError(404, "Teacher profile not found", [], "PROFILE_NOT_FOUND");
-  }
-
-  res.status(200).json(new ApiResponse(200, { profile }, "Profile updated"));
-});
-
-// ── POST /api/v1/teachers/me/avatar ──────────────────────────────────────────
-export const uploadAvatar = asyncHandler(async (req, res) => {
-  if (!req.file) {
-    throw new ApiError(400, "Avatar file is required", [], "FILE_MISSING");
-  }
-
-  // Delete old avatar
-  const user = await User.findById(req.user._id).select("avatarUrl").lean();
-  if (user?.avatarUrl) {
-    await CloudinaryService.delete(user.avatarUrl).catch(() => {});
-  }
-
-  const result = await CloudinaryService.uploadBuffer(req.file.buffer, {
-    folder: "trueed/avatars",
-    transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }],
-  });
-
-  await User.findByIdAndUpdate(req.user._id, { avatarUrl: result.secure_url });
-
-  res.status(200).json(new ApiResponse(200, { avatarUrl: result.secure_url }, "Avatar uploaded"));
-});
-
-// ── POST /api/v1/teachers/me/documents ───────────────────────────────────────
-export const uploadDocument = asyncHandler(async (req, res) => {
-  if (!req.file) {
-    throw new ApiError(400, "Document file is required", [], "FILE_MISSING");
-  }
-
-  const { type } = req.body;
-  if (!Object.values(DOCUMENT_TYPE).includes(type)) {
-    throw new ApiError(400, `Invalid document type: ${type}`, [], "INVALID_DOC_TYPE");
-  }
-
-  const result = await CloudinaryService.uploadBuffer(req.file.buffer, {
-    folder: "trueed/documents",
-    resource_type: "auto",
-  });
-
-  const doc = await Document.create({
-    teacherId: req.user._id,
-    type,
-    fileUrl: result.secure_url,
-    mimeType: req.file.mimetype,
-    fileSizeBytes: req.file.size,
-    version: 1,
-  });
-
-  res.status(201).json(new ApiResponse(201, { documentId: doc._id, fileUrl: doc.fileUrl }, "Document uploaded"));
-});
-
-// ── GET /api/v1/teachers/me/documents ────────────────────────────────────────
-export const getMyDocuments = asyncHandler(async (req, res) => {
-  const docs = await Document.getActiveByTeacher(req.user._id);
-  res.status(200).json(new ApiResponse(200, { documents: docs }, "Documents fetched"));
-});
-
-// ── POST /api/v1/teachers/me/availability ────────────────────────────────────
-export const setAvailability = asyncHandler(async (req, res) => {
-  const { slots, isAvailable } = req.body;
-
-  const update = {};
-  if (typeof isAvailable === "boolean") update.isAvailable = isAvailable;
-
-  if (Array.isArray(slots)) {
-    // Replace entire availability
-    update.availableSlots = slots.map(s => ({
-      day: Number(s.day),
-      startTime: s.startTime,
-      endTime: s.endTime,
-      slotDuration: Number(s.slotDuration) || 60,
-      isBooked: false,
-      bookedBy: null,
-    }));
+  // Validate IFSC format if bank account provided
+  if (bankAccount?.ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankAccount.ifsc)) {
+    throw ApiError.badRequest('Invalid IFSC code format');
   }
 
   const profile = await TeacherProfile.findOneAndUpdate(
     { userId: req.user._id },
-    { $set: update },
-    { new: true }
-  ).select("availableSlots isAvailable").lean();
+    {
+      $set: {
+        bio:             bio?.trim()      || '',
+        headline:        headline?.trim() || '',
+        subjects:        subjects.map(s => s.trim()),
+        languages:       languages        || ['Hindi', 'English'],
+        city:            city?.toLowerCase().trim(),
+        state:           state?.toLowerCase().trim(),
+        country:         country          || 'india',
+        experienceYears: experienceYears  || 0,
+        education:       education        || [],
+        bankAccount:     bankAccount      || undefined,
+        portfolioUrls:   portfolioUrls    || [],
+      },
+    },
+    { new: true, upsert: true, runValidators: true },
+  ).select('-adminNotes -searchKeywords');
 
-  if (!profile) {
-    throw new ApiError(404, "Teacher profile not found", [], "PROFILE_NOT_FOUND");
-  }
-
-  res.status(200).json(new ApiResponse(200, { availableSlots: profile.availableSlots, isAvailable: profile.isAvailable }, "Availability updated"));
+  res.status(200).json(new ApiResponse(200, profile, 'Teacher profile updated'));
 });
 
-// ── GET /api/v1/teachers/me/dashboard ────────────────────────────────────────
-export const getTeacherDashboard = asyncHandler(async (req, res) => {
+// ── POST /onboarding/kyc ──────────────────────────────────────────────────────
+export const uploadKYC = asyncHandler(async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    throw ApiError.badRequest('At least one document file is required');
+  }
+
+  const documentType = req.body.documentType || DOCUMENT_TYPE.AADHAAR;
+  if (!Object.values(DOCUMENT_TYPE).includes(documentType)) {
+    throw ApiError.badRequest('Invalid document type');
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const docIds = [];
+
+    for (let i = 0; i < req.files.length; i++) {
+      const file   = req.files[i];
+      const result = await CloudinaryService.uploadKYCDocument(
+        file.buffer,
+        req.user._id.toString(),
+        `${documentType}_${i}`,
+      );
+
+      const [doc] = await Document.create([{
+        teacherId:     req.user._id,
+        type:          documentType,
+        fileUrl:       result.secure_url,
+        s3Key:         result.public_id,
+        mimeType:      file.mimetype,
+        fileSizeBytes: file.size,
+        status:        DOCUMENT_STATUS.UPLOADED,
+      }], { session });
+
+      docIds.push(doc._id);
+    }
+
+    await TeacherProfile.findOneAndUpdate(
+      { userId: req.user._id },
+      { $push: { kycDocumentIds: { $each: docIds } } },
+      { session },
+    );
+
+    await User.findByIdAndUpdate(
+      req.user._id,
+      { kycStatus: 'under_review' },
+      { session },
+    );
+
+    await session.commitTransaction();
+    logger.info('KYC documents uploaded', { userId: req.user._id, count: docIds.length });
+    res.status(200).json(new ApiResponse(200, { uploaded: docIds.length }, 'Documents uploaded. Under review.'));
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+});
+
+// ── GET /me/dashboard ─────────────────────────────────────────────────────────
+export const getDashboard = asyncHandler(async (req, res) => {
   const teacherId = req.user._id;
 
-  const [profile, upcomingBookings, recentEarnings, pendingBookings] = await Promise.all([
-    TeacherProfile.findOne({ userId: teacherId })
-      .select("stats verificationStatus isAvailable hourlyRatePaise")
-      .lean(),
-
-    Booking.find({
+  const [
+    classroomStats,
+    pendingQueries,
+    pendingDoubts,
+    pendingExtraClasses,
+    upcomingSchedule,
+  ] = await Promise.all([
+    Classroom.aggregate([
+      { $match: { teacherId: new mongoose.Types.ObjectId(teacherId) } },
+      {
+        $group: {
+          _id:                null,
+          total:              { $sum: 1 },
+          active:             { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          completed:          { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          totalStudents:      { $sum: '$stats.enrolledStudents' },
+          totalEarningsPaise: { $sum: '$stats.totalEarningsPaise' },
+        },
+      },
+    ]),
+    EnrollmentQuery.countDocuments({ teacherId, status: 'pending' }),
+    Doubt.countDocuments({ teacherId, status: 'open' }),
+    ExtraClass.countDocuments({ teacherId, status: 'pending' }),
+    // Next 7 days of scheduled classrooms
+    Classroom.find({
       teacherId,
-      status: { $in: [BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS] },
-      scheduledAt: { $gte: new Date() },
-    })
-      .populate("studentId", "name avatarUrl")
-      .sort({ scheduledAt: 1 })
-      .limit(5)
-      .lean(),
+      status: 'active',
+      endDate: { $gte: new Date() },
+    }).select('title subject schedule mode gmeetLink stats').limit(10).lean(),
+  ]);
 
-    Payout.find({ teacherId })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select("amountPaise status createdAt settledAt")
-      .lean(),
+  const profile = await TeacherProfile.findOne({ userId: teacherId })
+    .select('walletPaise stats verificationStatus bio headline subjects')
+    .lean({ virtuals: true });
 
-    Booking.find({ teacherId, status: BOOKING_STATUS.PENDING })
-      .populate("studentId", "name avatarUrl")
+  res.status(200).json(new ApiResponse(200, {
+    classroomStats: classroomStats[0] || { total: 0, active: 0, completed: 0, totalStudents: 0, totalEarningsPaise: 0 },
+    pendingQueries,
+    pendingDoubts,
+    pendingExtraClasses,
+    upcomingSchedule,
+    walletPaise: profile?.walletPaise || 0,
+    verificationStatus: profile?.verificationStatus,
+  }, 'Dashboard data'));
+});
+
+// ── GET /me/earnings ──────────────────────────────────────────────────────────
+export const getEarnings = asyncHandler(async (req, res) => {
+  const { Payout } = await import('../models/index.js');
+
+  const [profile, payouts] = await Promise.all([
+    TeacherProfile.findOne({ userId: req.user._id })
+      .select('walletPaise stats.totalEarningsPaise stats.withdrawnPaise stats.pendingPayoutPaise')
+      .lean(),
+    Payout.find({ teacherId: req.user._id })
       .sort({ createdAt: -1 })
-      .limit(10)
+      .limit(20)
       .lean(),
   ]);
 
-  const stats = profile?.stats || {};
-
-  res.status(200).json(
-    new ApiResponse(200, {
-      stats: {
-        totalStudents: stats.totalBookings || 0,
-        completedSessions: stats.completedSessions || 0,
-        totalEarningsRupees: (stats.totalEarningsPaise || 0) / 100,
-        avgRating: stats.avgRating || 0,
-        reviewCount: stats.reviewCount || 0,
-        pendingPayoutRupees: (stats.pendingPayoutPaise || 0) / 100,
-      },
-      verificationStatus: profile?.verificationStatus || "pending",
-      isAvailable: profile?.isAvailable || false,
-      upcomingBookings,
-      pendingBookings,
-      recentEarnings,
-    }, "Dashboard data fetched")
-  );
+  res.status(200).json(new ApiResponse(200, {
+    walletPaise:         profile?.walletPaise || 0,
+    totalEarningsPaise:  profile?.stats?.totalEarningsPaise || 0,
+    withdrawnPaise:      profile?.stats?.withdrawnPaise || 0,
+    pendingPayoutPaise:  profile?.stats?.pendingPayoutPaise || 0,
+    recentPayouts:       payouts,
+  }, 'Earnings data'));
 });
 
-// ── GET /api/v1/teachers/me/bookings ─────────────────────────────────────────
-export const getTeacherBookings = asyncHandler(async (req, res) => {
+// ── GET /me/queries ───────────────────────────────────────────────────────────
+export const getMyQueries = asyncHandler(async (req, res) => {
   const { status, page = 1, limit = 20 } = req.query;
-
   const filter = { teacherId: req.user._id };
   if (status) filter.status = status;
 
-  const result = await Booking.paginate(filter, {
-    page: Number(page),
-    limit: Math.min(Number(limit), 50),
-    sort: { scheduledAt: -1 },
-    populate: [{ path: "studentId", select: "name avatarUrl phone" }],
-    lean: true,
-    leanWithId: true,
-    customLabels: { docs: "results", totalDocs: "total", totalPages: "pages" },
+  const result = await EnrollmentQuery.paginate(filter, {
+    page: Number(page), limit: Math.min(Number(limit), 50),
+    sort: { createdAt: -1 },
+    populate: [
+      { path: 'studentId',   select: 'name phone avatarUrl' },
+      { path: 'classroomId', select: 'title subject feesPaise' },
+    ],
   });
 
-  res.status(200).json(new ApiResponse(200, paginate(result), "Bookings fetched"));
+  res.status(200).json(new ApiResponse(200, result, 'Queries fetched'));
 });
 
-// ── GET /api/v1/teachers/me/earnings ─────────────────────────────────────────
-export const getTeacherEarnings = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20 } = req.query;
-  const teacherId = req.user._id;
+// ── GET /:teacherId/public ────────────────────────────────────────────────────
+export const getPublicProfile = asyncHandler(async (req, res) => {
+  const { teacherId } = req.params;
 
-  const [summary, payoutsResult] = await Promise.all([
-    Payout.earningsSummary(teacherId),
-    Payout.teacherEarnings(teacherId, {
-      page: Number(page),
-      limit: Math.min(Number(limit), 50),
-    }),
+  const [user, profile, classrooms, ratingBreakdown] = await Promise.all([
+    User.findOne({ _id: teacherId, role: 'teacher', isActive: true })
+      .select('name avatarUrl city state createdAt')
+      .lean(),
+    TeacherProfile.findOne({ userId: teacherId, verificationStatus: VERIFICATION_STATUS.APPROVED })
+      .select('-adminNotes -searchKeywords -bankAccount -aadhaarNumber -kycDocumentIds -razorpayContactId -razorpayFundId')
+      .lean({ virtuals: true }),
+    Classroom.find({ teacherId, status: 'active' })
+      .select('title subject stream mode feesPaise maxStudents stats schedule startDate endDate')
+      .limit(10).lean(),
+    Review.ratingBreakdown(teacherId),
   ]);
 
-  // Build summary map
-  const summaryMap = summary.reduce((acc, s) => {
-    acc[s.status] = { totalRupees: s.totalRupees, count: s.count };
-    return acc;
-  }, {});
+  if (!user || !profile) throw ApiError.notFound('Teacher');
 
-  res.status(200).json(
-    new ApiResponse(200, {
-      summary: summaryMap,
-      payouts: paginate(payoutsResult),
-    }, "Earnings fetched")
-  );
+  res.status(200).json(new ApiResponse(200, {
+    user, profile, classrooms, ratingBreakdown,
+  }, 'Teacher public profile'));
 });
 
-// ── GET /api/v1/teachers/me/students ─────────────────────────────────────────
-export const getTeacherStudents = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, search } = req.query;
-  const teacherId = req.user._id;
+// ── GET /me/classrooms ────────────────────────────────────────────────────────
+export const getMyClassrooms = asyncHandler(async (req, res) => {
+  const { status, page = 1, limit = 10 } = req.query;
+  const filter = { teacherId: req.user._id };
+  if (status) filter.status = status;
 
-  // Aggregate unique students who had bookings with this teacher
-  const pipeline = [
-    { $match: { teacherId: new mongoose.Types.ObjectId(teacherId), status: { $in: [BOOKING_STATUS.COMPLETED, BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS] } } },
-    { $group: {
-        _id: "$studentId",
-        totalSessions: { $sum: 1 },
-        lastSession: { $max: "$scheduledAt" },
-        subjects: { $addToSet: "$subject" },
-      }
-    },
-    { $lookup: {
-        from: "users",
-        localField: "_id",
-        foreignField: "_id",
-        as: "student",
-        pipeline: [{ $project: { name: 1, avatarUrl: 1, phone: 1, city: 1 } }],
-      }
-    },
-    { $unwind: { path: "$student", preserveNullAndEmptyArrays: true } },
-  ];
+  const result = await Classroom.paginate(filter, {
+    page: Number(page), limit: Math.min(Number(limit), 30),
+    sort: { createdAt: -1 },
+  });
 
-  if (search) {
-    pipeline.push({ $match: { "student.name": { $regex: search, $options: "i" } } });
+  res.status(200).json(new ApiResponse(200, result, 'My classrooms'));
+});
+
+// ── GET /me/doubts ────────────────────────────────────────────────────────────
+export const getMyDoubts = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, status = 'open' } = req.query;
+
+  const result = await Doubt.paginate(
+    { teacherId: req.user._id, status },
+    {
+      page: Number(page), limit: Math.min(Number(limit), 50),
+      sort: { createdAt: -1 },
+      populate: [
+        { path: 'studentId',   select: 'name avatarUrl' },
+        { path: 'classroomId', select: 'title subject' },
+      ],
+    },
+  );
+
+  res.status(200).json(new ApiResponse(200, result, 'Doubts inbox'));
+});
+
+// ── PATCH /me/availability ────────────────────────────────────────────────────
+export const updateAvailability = asyncHandler(async (req, res) => {
+  const { isAvailableForNewClassrooms } = req.body;
+  if (typeof isAvailableForNewClassrooms !== 'boolean') {
+    throw ApiError.badRequest('isAvailableForNewClassrooms must be a boolean');
   }
 
-  const countPipeline = [...pipeline, { $count: "total" }];
-  const skip = (Number(page) - 1) * Number(limit);
-  pipeline.push({ $sort: { lastSession: -1 } }, { $skip: skip }, { $limit: Number(limit) });
-
-  const [students, countResult] = await Promise.all([
-    Booking.aggregate(pipeline),
-    Booking.aggregate(countPipeline),
-  ]);
-
-  const total = countResult[0]?.total || 0;
-
-  res.status(200).json(
-    new ApiResponse(200, {
-      results: students,
-      pagination: { total, pages: Math.ceil(total / limit), page: Number(page), limit: Number(limit) },
-    }, "Students fetched")
+  await TeacherProfile.findOneAndUpdate(
+    { userId: req.user._id },
+    { isAvailableForNewClassrooms },
   );
+
+  res.status(200).json(new ApiResponse(200, null, 'Availability updated'));
 });

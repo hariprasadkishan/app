@@ -1,41 +1,35 @@
 // src/routes/auth.routes.js
-
 import { Router } from 'express';
 import {
-  sendOtp,
-  verifyOtp,
-  register,
-  login,
-  refreshToken,
-  logout,
-  getMe,
-  updateMe,
+  signupSendOtp, signupVerifyOtp, signupComplete,
+  loginSendOtp, loginVerifyOtp, loginWithPassword,
+  googleAuthUrl, googleCallback, googleComplete,
+  refreshToken, logout,
 } from '../controllers/auth.controller.js';
-import { authenticate } from '../middlewares/auth.middleware.js';
-import { validate } from '../middlewares/validate.middleware.js';
 import { authLimiter } from '../middlewares/rateLimit.middleware.js';
-import {
-  sendOtpSchema,
-  verifyOtpSchema,
-  registerSchema,
-  refreshTokenSchema,
-} from '../validators/auth.validators.js';
-import { updateStudentProfileSchema } from '../validators/student.validator.js';
 
 const router = Router();
 
-// ── Public OTP routes (rate-limited) ─────────────────────────────────────────
-router.post('/send-otp',    authLimiter, validate(sendOtpSchema),    sendOtp);
-router.post('/verify-otp',  authLimiter, validate(verifyOtpSchema),  verifyOtp);
-router.post('/register',    authLimiter, validate(registerSchema),   register);
-router.post('/login',       authLimiter,                             login);
+// Apply auth rate limiter to every route in this module
+router.use(authLimiter);
 
-// ── Token management ──────────────────────────────────────────────────────────
-router.post('/refresh',  validate(refreshTokenSchema), refreshToken);
-router.post('/logout',   authenticate,                 logout);
+// ── Signup ────────────────────────────────────────────────────────────────────
+router.post('/signup/send-otp',  signupSendOtp);
+router.post('/signup/verify-otp', signupVerifyOtp);
+router.post('/signup/complete',  signupComplete);
 
-// ── Authenticated user endpoints ──────────────────────────────────────────────
-router.get('/me',  authenticate, getMe);
-router.put('/me',  authenticate, validate(updateStudentProfileSchema), updateMe);
+// ── Login ─────────────────────────────────────────────────────────────────────
+router.post('/login/send-otp',   loginSendOtp);
+router.post('/login/verify-otp', loginVerifyOtp);
+router.post('/login/password',   loginWithPassword);
+
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+router.get('/google',           googleAuthUrl);
+router.get('/google/callback',  googleCallback);
+router.post('/google/complete', googleComplete);
+
+// ── Session ───────────────────────────────────────────────────────────────────
+router.post('/refresh', refreshToken);
+router.post('/logout',  logout);
 
 export default router;
