@@ -6,7 +6,8 @@ import mongoose             from 'mongoose';
 import mongoosePaginate     from 'mongoose-paginate-v2';
 import mongooseLeanVirtuals from 'mongoose-lean-virtuals';
 import bcrypt               from 'bcryptjs';
-import { ROLES, AGE_LIMITS } from '../constants/enums.js';
+import { ROLES } from '../constants/enums.js';
+import { AGE_LIMITS } from '../constants/app.constants.js';
 import {
   jsonTransform,
   toObjectOptions,
@@ -175,6 +176,20 @@ userSchema.virtual('hasVerifiedTeacherBadge').get(function () {
 });
 
 // ── Instance methods ──────────────────────────────────────────────────────────
+userSchema.pre('save', async function (next) {
+  // Hash plaintext password on set/change. Controllers must assign the raw
+  // password to `user.passwordHash` before calling save() — never hash twice.
+  if (this.isModified('passwordHash') && this.passwordHash && !this.passwordHash.startsWith('$2')) {
+    this.passwordHash = await bcrypt.hash(this.passwordHash, 10);
+  }
+  next();
+});
+
+userSchema.methods.comparePassword = async function (plainPassword) {
+  if (!this.passwordHash) return false; // account has no password set (OTP/Google-only)
+  return bcrypt.compare(plainPassword, this.passwordHash);
+};
+
 userSchema.methods.softDelete = async function () {
   this.deletedAt = new Date();
   this.isActive  = false;
@@ -190,12 +205,6 @@ userSchema.methods.ban = async function (reason) {
 
 userSchema.methods.touchActivity = function () {
   return this.constructor.updateOne({ _id: this._id }, { lastActiveAt: new Date() });
-};
-
-// Verification method for password-based sign-in flows
-userSchema.methods.comparePassword = async function (plainPassword) {
-  if (!this.passwordHash) return false;
-  return bcrypt.compare(plainPassword, this.passwordHash);
 };
 
 // ── Static methods ─────────────────────────────────────────────────────────────

@@ -91,4 +91,32 @@ export const WalletService = {
 
     return wallet;
   },
+
+  /**
+   * Debit the student's internal cash balance (funds previously refunded via
+   * Case 2/3 settlements) — used when a student opts to pay an enrollment
+   * fee from wallet cash instead of a fresh Razorpay charge.
+   *
+   * Throws 402 INSUFFICIENT_CASH (not a generic 400/500) so the SPA can
+   * immediately fall back to the Razorpay checkout flow without a page
+   * reload, per the front-end's error-code contract.
+   */
+  async debitCashOrThrow(studentId, amountPaise, session = null) {
+    const wallet = await StudentWallet.findOneAndUpdate(
+      { studentId, cashBalancePaise: { $gte: amountPaise } },
+      { $inc: { cashBalancePaise: -amountPaise, totalCashSpentPaise: amountPaise } },
+      { new: true, session }
+    );
+
+    if (!wallet) {
+      throw new ApiError(
+        402,
+        "Insufficient wallet cash balance. Please pay via checkout instead.",
+        [],
+        "INSUFFICIENT_CASH",
+      );
+    }
+
+    return wallet;
+  },
 };
