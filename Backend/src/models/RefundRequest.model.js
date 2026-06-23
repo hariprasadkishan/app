@@ -54,7 +54,6 @@ const refundRequestSchema = new Schema(
       type:     Schema.Types.ObjectId,
       ref:      'Enrollment',
       default:  null,
-      index:    true,
     },
     paymentId: {
       type:     Schema.Types.ObjectId,

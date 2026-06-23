@@ -46,7 +46,6 @@ const payoutSchema = new Schema(
       type:     Schema.Types.ObjectId,
       ref:      'Classroom',
       required: [true, 'Classroom ID is required'],
-      index:    true,
     },
     // Batch of enrollment payments this payout covers
     enrollmentIds: [{ type: Schema.Types.ObjectId, ref: 'Enrollment' }],

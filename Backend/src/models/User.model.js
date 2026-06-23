@@ -141,7 +141,7 @@ const userSchema = new Schema(
     ],
     // ── Admin meta ────────────────────────────────────────────────────────────
     onboardedAt: { type: Date, default: null },
-    deletedAt:   { type: Date, default: null, index: true },
+    deletedAt:   { type: Date, default: null },
   },
   {
     timestamps: true,

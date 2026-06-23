@@ -31,7 +31,6 @@ const otpSessionSchema = new Schema(
     expiresAt: {
       type:     Date,
       required: true,
-      index:    true,
     },
     verified:   { type: Boolean, default: false },
     verifiedAt: { type: Date,    default: null  },
