@@ -88,3 +88,6 @@ export function applySchemaPlugins(schema, plugins = []) {
     else schema.plugin(p);
   });
 }
+
+export { defaultPaginateOptions } from "./pagination.util.js";
+

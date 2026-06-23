@@ -12,9 +12,10 @@ const helmetOptions = {
       objectSrc:   ["'none'"],
       // Google Meet embeds (for online classes)
       frameSrc:    ["'self'", "https://meet.google.com"],
-      upgradeInsecureRequests: env.NODE_ENV === "production" ? [] : undefined,
+      upgradeInsecureRequests: env.NODE_ENV === "production" ? [] : null,
     },
   },
+
 
   noSniff:          true,
   xssFilter:        true,
