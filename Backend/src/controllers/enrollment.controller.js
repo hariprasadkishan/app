@@ -41,19 +41,20 @@ export const sendQuery = asyncHandler(async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    // Debit 1 token (throws 402 if insufficient)
-    await WalletService.debitToken(req.user._id, null, classroomId, session);
+    // PRE-ALLOCATE THE ID: Safely generates the target ID before document creation
+    const allocatedQueryId = new mongoose.Types.ObjectId();
+
+    // Debit exactly 1 token ONCE with the pre-bound reference payload
+    await WalletService.debitToken(req.user._id, allocatedQueryId, classroomId, session);
 
     const [query] = await EnrollmentQuery.create([{
+      _id:                 allocatedQueryId, // Inject pre-allocated ID
       studentId:           req.user._id,
       classroomId,
       teacherId:           classroom.teacherId,
       message:             message.trim(),
       teacherDepositPaise: calcTeacherDeposit(classroom.feesPaise),
     }], { session });
-
-    // Update query with its own ID for token transaction
-    await WalletService.debitToken(req.user._id, query._id, classroomId, session);
 
     await Classroom.findByIdAndUpdate(classroomId, { $inc: { 'stats.totalQueries': 1 } }, { session });
     await session.commitTransaction();
@@ -65,7 +66,7 @@ export const sendQuery = asyncHandler(async (req, res) => {
     ]);
     NotificationService.notifyTeacherNewQuery(teacher, student, classroom).catch(() => {});
 
-    logger.info('Enrollment query sent', { queryId: query._id, studentId: req.user._id, classroomId });
+    logger.info('Enrollment query processed safely with single token debit', { queryId: query._id, studentId: req.user._id });
     res.status(201).json(new ApiResponse(201, query, 'Enrollment request sent'));
   } catch (err) {
     await session.abortTransaction();

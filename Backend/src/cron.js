@@ -1,28 +1,17 @@
 // src/cron.js
-// Background automation workers — runs inside the main Node process.
-// All jobs bypass the API routing layer completely and operate directly
-// on Mongoose models inside managed sessions.
 import cron       from 'node-cron';
 import mongoose   from 'mongoose';
-import { EnrollmentQuery, TeacherProfile, Classroom, Enrollment, Poll } from './models/index.js';
+import { EnrollmentQuery, TeacherProfile, Classroom, Enrollment, Poll, User } from './models/index.js';
 import { WalletService }     from './services/wallet.service.js';
 import { NotificationService } from './services/notification.service.js';
-import { ClassroomService }  from './services/classroom.service.js';
 import { EscrowService }     from './services/escrow.service.js';
 import { QUERY_STATUS, CLASSROOM_STATUS, POLL_STATUS, ENROLLMENT_STATUS } from './constants/enums.js';
 import logger                from './config/logger.config.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// JOB 1: Query Expiry — Every 1 hour
-// Expire pending queries where teacher hasn't responded in 5 days.
-// Refund 1 token to the student for each expired query.
-// ─────────────────────────────────────────────────────────────────────────────
 async function runQueryExpiryJob() {
   logger.info('[CRON] Query expiry job started');
   const overdueQueries = await EnrollmentQuery.overdueForTeacher();
   if (!overdueQueries.length) return;
-
-  logger.info(`[CRON] Found ${overdueQueries.length} overdue queries to expire`);
 
   for (const q of overdueQueries) {
     const session = await mongoose.startSession();
@@ -37,8 +26,6 @@ async function runQueryExpiryJob() {
       );
       await session.commitTransaction();
 
-      // Non-blocking student notification
-      const { User } = await import('./models/index.js');
       Promise.all([
         User.findById(q.studentId).select('phone'),
         Classroom.findById(q.classroomId).select('title'),
@@ -47,8 +34,6 @@ async function runQueryExpiryJob() {
           NotificationService.notifyStudentQueryExpired(student, classroom).catch(() => {});
         }
       });
-
-      logger.info('[CRON] Query expired and token refunded', { queryId: q._id, studentId: q.studentId });
     } catch (err) {
       await session.abortTransaction();
       logger.error('[CRON] Failed to expire query', { queryId: q._id, error: err.message });
@@ -58,17 +43,10 @@ async function runQueryExpiryJob() {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// JOB 2: Accepted Query Lapsing — Every 1 hour
-// Lapse accepted queries where student hasn't enrolled within 5 days.
-// Refund the teacher's 4% deposit back to their wallet.
-// ─────────────────────────────────────────────────────────────────────────────
 async function runAcceptedQueryLapseJob() {
   logger.info('[CRON] Accepted query lapse job started');
   const overdueAccepted = await EnrollmentQuery.overdueForStudent();
   if (!overdueAccepted.length) return;
-
-  logger.info(`[CRON] Found ${overdueAccepted.length} accepted queries to lapse`);
 
   for (const q of overdueAccepted) {
     const session = await mongoose.startSession();
@@ -76,30 +54,19 @@ async function runAcceptedQueryLapseJob() {
     try {
       await EnrollmentQuery.findByIdAndUpdate(q._id, { status: QUERY_STATUS.LAPSED }, { session });
 
-      // Refund teacher's 4% deposit back to their internal wallet
       if (q.teacherDepositPaise && q.teacherDepositPaid) {
         await TeacherProfile.findOneAndUpdate(
           { userId: q.teacherId },
           { $inc: { walletPaise: q.teacherDepositPaise } },
           { session },
         );
-        logger.info('[CRON] Teacher deposit refunded on query lapse', {
-          queryId:   q._id,
-          teacherId: q.teacherId,
-          amountPaise: q.teacherDepositPaise,
-        });
-
-        // Non-blocking notification
-        const { User } = await import('./models/index.js');
         User.findById(q.teacherId).select('phone').then((teacher) => {
           if (teacher) {
             NotificationService.notifyTeacherDepositRefunded(teacher, q.teacherDepositPaise).catch(() => {});
           }
         });
       }
-
       await session.commitTransaction();
-      logger.info('[CRON] Query lapsed', { queryId: q._id });
     } catch (err) {
       await session.abortTransaction();
       logger.error('[CRON] Failed to lapse query', { queryId: q._id, error: err.message });
@@ -109,12 +76,7 @@ async function runAcceptedQueryLapseJob() {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// JOB 3: Poll Expiry — Every 1 hour
-// Expire active polls that have passed their expiresAt time.
-// If an early-end poll expires without reaching 70% YES votes, revert
-// the classroom status back to active.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── FIXED: Resolution Worker for Early End Cohorts ──────────────────────────
 async function runPollExpiryJob() {
   const expiredPolls = await Poll.find({
     status:    POLL_STATUS.ACTIVE,
@@ -125,36 +87,63 @@ async function runPollExpiryJob() {
   logger.info(`[CRON] Expiring ${expiredPolls.length} polls`);
 
   for (const poll of expiredPolls) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-      await Poll.findByIdAndUpdate(poll._id, { status: POLL_STATUS.EXPIRED });
+      await Poll.findByIdAndUpdate(poll._id, { status: POLL_STATUS.EXPIRED }, { session });
 
-      // If early-end poll expired without enough votes → revert classroom to active
       if (poll.type === 'early_end') {
-        const classroom = await Classroom.findOne({ earlyEndPollId: poll._id, status: CLASSROOM_STATUS.COMPLETION_PENDING });
+        const classroom = await Classroom.findOne({ earlyEndPollId: poll._id, status: CLASSROOM_STATUS.COMPLETION_PENDING }).session(session);
+        
         if (classroom) {
-          await Classroom.findByIdAndUpdate(classroom._id, {
-            status:             CLASSROOM_STATUS.ACTIVE,
-            earlyEndRequestedAt: null,
-            earlyEndPollId:     null,
-          });
-          logger.info('[CRON] Early-end poll expired without approval, classroom reverted to active', { classroomId: classroom._id });
+          // Compute real vote distribution thresholds
+          const totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0);
+          const yesVotes   = poll.options.find(o => o.text === 'Yes')?.votes || 0;
+          const approvalRatio = totalVotes > 0 ? (yesVotes / totalVotes) * 100 : 0;
+
+          if (approvalRatio >= 70) {
+            // SUCCESSFUL PASS: Update states and trigger Case 1 settlements
+            classroom.status = CLASSROOM_STATUS.COMPLETED;
+            classroom.completedAt = new Date();
+            classroom.completionCase = 'case_1';
+            await classroom.save({ session });
+
+            // Fetch active students to distribute funds locally
+            const activeEnrollments = await Enrollment.find({ classroomId: classroom._id, status: ENROLLMENT_STATUS.ACTIVE }).session(session);
+            const teacherUser = await User.findById(classroom.teacherId).session(session);
+
+            for (const enrollment of activeEnrollments) {
+              enrollment.status = ENROLLMENT_STATUS.COMPLETED;
+              await enrollment.save({ session });
+              const studentUser = await User.findById(enrollment.studentId).session(session);
+              
+              // Local internal wallet payout distribution (No Razorpay fee burned!)
+              await EscrowService.settleCase1(enrollment, teacherUser, [studentUser]);
+            }
+            logger.info('[CRON] Early closure approved via 70% vote. Settled Case 1.', { classroomId: classroom._id });
+          } else {
+            // POLL FAILED: Revert classroom back to active state safely
+            classroom.status = CLASSROOM_STATUS.ACTIVE;
+            classroom.earlyEndRequestedAt = null;
+            classroom.earlyEndPollId = null;
+            await classroom.save({ session });
+            logger.info('[CRON] Early closure failed. Reverted to active.', { classroomId: classroom._id });
+          }
         }
       }
+      await session.commitTransaction();
     } catch (err) {
-      logger.error('[CRON] Poll expiry error', { pollId: poll._id, error: err.message });
+      await session.abortTransaction();
+      logger.error('[CRON] Poll expiry transaction aborted', { pollId: poll._id, error: err.message });
+    } finally {
+      session.endSession();
     }
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// JOB 4: Classroom Overdue Closure — Every 6 hours
-// Auto-complete classrooms that have passed their endDate without being closed.
-// ─────────────────────────────────────────────────────────────────────────────
 async function runClassroomOverdueJob() {
   const overdueClassrooms = await Classroom.overdueActive();
   if (!overdueClassrooms.length) return;
-
-  logger.info(`[CRON] Found ${overdueClassrooms.length} overdue classrooms`);
 
   for (const classroom of overdueClassrooms) {
     try {
@@ -170,11 +159,7 @@ async function runClassroomOverdueJob() {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REGISTER ALL JOBS
-// ─────────────────────────────────────────────────────────────────────────────
 export function initCronJobs() {
-  // Every hour at minute 0
   cron.schedule('0 * * * *', async () => {
     try { await runQueryExpiryJob(); }
     catch (err) { logger.error('[CRON] runQueryExpiryJob fatal', { error: err.message }); }
@@ -190,11 +175,10 @@ export function initCronJobs() {
     catch (err) { logger.error('[CRON] runPollExpiryJob fatal', { error: err.message }); }
   });
 
-  // Every 6 hours
   cron.schedule('0 */6 * * *', async () => {
     try { await runClassroomOverdueJob(); }
     catch (err) { logger.error('[CRON] runClassroomOverdueJob fatal', { error: err.message }); }
   });
 
-  logger.info('✅ Cron jobs initialized: query expiry, query lapse, poll expiry, classroom overdue');
+  logger.info('✅ Cron jobs initialized successfully with settlement support');
 }
